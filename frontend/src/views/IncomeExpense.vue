@@ -11,7 +11,7 @@
         <!-- 搜索：名称 / 分类 / 金额区间 / 时间区间 -->
         <search-form
           :schema="searchSchemaOf(t.name)"
-          :collapsed-count="4"
+          :collapsed-count="3"
           @search="load(t.name)"
           @reset="onReset(t.name)"
         />
