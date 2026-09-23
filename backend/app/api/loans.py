@@ -21,6 +21,17 @@ from app.api.income_expense import ensure_details, sync_detail_amounts
 router = APIRouter(prefix="/loans", tags=["贷款管理"])
 
 
+def _derive_loan_amount(data: dict) -> None:
+    """贷款金额 = 总价 - 本金（首付）。
+
+    由服务端强制计算，不接受客户端传值（LoanCreate/LoanUpdate 已不含该字段），
+    避免手填导致与总价、首付不一致。
+    """
+    total = float(data.get("total_price") or 0)
+    principal = float(data.get("principal") or 0)
+    data["loan_amount"] = round(max(total - principal, 0.0), 2)
+
+
 def _validate(data: dict) -> None:
     """校验贷款字段的取值。"""
     if data.get("repayment_method") not in VALID_METHODS:
@@ -145,6 +156,7 @@ def create_loan(
     current_user: User = Depends(get_current_user),
 ):
     data = payload.model_dump()
+    _derive_loan_amount(data)  # 贷款金额按「总价 - 本金」自动得出
     _validate(data)
     data["owner_id"] = current_user.id  # 强制归属当前用户，忽略客户端传值
     loan = Loan(**data)
@@ -182,11 +194,13 @@ def update_loan(
         "repayment_method": loan.repayment_method,
     }
     merged.update({k: v for k, v in updates.items() if k in merged})
+    _derive_loan_amount(merged)  # 改了总价或首付，贷款金额随之重算
     _validate(merged)
     for key, value in updates.items():
         if key == "owner_id":  # 不允许通过编辑把数据转移给别人
             continue
         setattr(loan, key, value)
+    loan.loan_amount = merged["loan_amount"]
     db.commit()
     db.refresh(loan)
     _sync_income_expense(db, loan, current_user.id)

@@ -66,7 +66,8 @@ uvicorn app.main:app --reload --port 8000
 > 修改金额时的明细同步：改动固定收支主记录的 `amount` 后，已展开的各期明细会同步为新金额，但**金额被单独调整过的期次保持不动**（判定依据是该期金额是否仍等于旧金额，用 0.005 容差比较浮点）。这样「整体调价」与「某月房租上涨」两种场景可以共存，总金额随之正确汇总。
 
 ## 贷款管理（loans）
-- 字段：`total_price` 总价、`principal` 本金（首付款）、`loan_amount` 贷款金额（= 总价 − 本金，前端自动算出、可手动改）、`annual_rate` 年利率(%)、`years` 贷款年限（年）、`start_date` 起始（首次还款）日期、`repayment_method` 还款方式。
+- 字段：`total_price` 总价、`principal` 本金（首付款）、`loan_amount` 贷款金额（= 总价 − 本金，**由服务端计算，不可编辑**）、`annual_rate` 年利率(%)、`years` 贷款年限（年）、`start_date` 起始（首次还款）日期、`repayment_method` 还款方式。
+- **贷款金额不可手填**：`LoanCreate` / `LoanUpdate` 均不含 `loan_amount`（客户端传值会被忽略），服务端按 `总价 − 本金` 强制计算；首付 ≥ 总价时贷款金额为 0，校验返回 400。前端表单该控件为禁用态，值是 `总价 − 本金` 的派生计算结果。
 - 还款方式：
   - `equal_installment` 等额本息——每月还款额固定：`M = P·r·(1+r)^n / ((1+r)^n − 1)`，其中 `r = 年利率/100/12`、`n = 年限×12`。
   - `equal_principal` 等额本金——每月归还本金固定、利息递减：首月 `P/n + P·r`，末月 `P/n + (P/n)·r`。

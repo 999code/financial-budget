@@ -59,9 +59,15 @@
         <el-form-item label="本金（首付）">
           <el-input-number v-model="form.principal" :min="0" :precision="2" :step="10000" style="width: 100%" />
         </el-form-item>
-        <el-form-item label="贷款金额" prop="loan_amount">
-          <el-input-number v-model="form.loan_amount" :min="0" :precision="2" :step="10000" style="width: 100%" />
-          <div class="hint">默认按「总价 - 本金」自动计算，可手动调整</div>
+        <el-form-item label="贷款金额" :error="loanAmountError">
+          <el-input-number
+            :model-value="loanAmount"
+            :min="0"
+            :precision="2"
+            disabled
+            style="width: 100%"
+          />
+          <div class="hint">自动计算：总价 − 本金（首付）</div>
         </el-form-item>
         <el-form-item label="年利率(%)">
           <el-input-number v-model="form.annual_rate" :min="0" :precision="2" :step="0.05" style="width: 100%" />
@@ -130,7 +136,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import SearchForm from '@/components/SearchForm.vue'
@@ -231,7 +237,6 @@ const emptyForm = () => ({
   name: '',
   total_price: 0,
   principal: 0,
-  loan_amount: 0,
   annual_rate: 0,
   years: 30,
   repayment_method: 'equal_installment',
@@ -240,22 +245,25 @@ const emptyForm = () => ({
 })
 const form = reactive(emptyForm())
 
-// 改总价或首付时，自动重算贷款金额
-watch(
-  () => [form.total_price, form.principal],
-  () => {
-    const diff = Number(form.total_price || 0) - Number(form.principal || 0)
-    form.loan_amount = diff > 0 ? Number(diff.toFixed(2)) : 0
-  }
+// 贷款金额 = 总价 - 本金（首付），派生值，不进表单模型（无法被编辑或写入）
+const loanAmount = computed(() => {
+  const diff = Number(form.total_price || 0) - Number(form.principal || 0)
+  return diff > 0 ? Number(diff.toFixed(2)) : 0
+})
+// 提交过一次后才提示，贷款金额一大于 0 提示自动消失
+const amountChecked = ref(false)
+const loanAmountError = computed(() =>
+  amountChecked.value && loanAmount.value <= 0
+    ? '贷款金额必须大于 0，请检查总价与本金（首付）'
+    : ''
 )
 
 const preview = computed(() =>
-  calcPayments(form.loan_amount, form.annual_rate, form.years, form.repayment_method)
+  calcPayments(loanAmount.value, form.annual_rate, form.years, form.repayment_method)
 )
 
 const rules = {
   name: [{ required: true, message: '请输入贷款名称', trigger: 'blur' }],
-  loan_amount: [{ required: true, message: '贷款金额必须大于 0', trigger: 'blur' }],
   years: [{ required: true, message: '请输入贷款年限', trigger: 'blur' }],
 }
 
@@ -296,6 +304,7 @@ function onReset() {
 function openCreate() {
   editingId.value = null
   Object.assign(form, emptyForm())
+  amountChecked.value = false
   visible.value = true
 }
 
@@ -305,13 +314,13 @@ function openEdit(row) {
     name: row.name,
     total_price: row.total_price,
     principal: row.principal,
-    loan_amount: row.loan_amount,
     annual_rate: row.annual_rate,
     years: row.years,
     repayment_method: row.repayment_method,
     start_date: row.start_date || '',
     note: row.note || '',
   })
+  amountChecked.value = false
   visible.value = true
 }
 
@@ -326,17 +335,17 @@ async function submit() {
     name: form.name,
     total_price: Number(form.total_price || 0),
     principal: Number(form.principal || 0),
-    loan_amount: Number(form.loan_amount || 0),
     annual_rate: Number(form.annual_rate || 0),
     years: Number(form.years || 0),
     repayment_method: form.repayment_method,
     start_date: form.start_date || null,
     note: form.note || null,
   }
-  if (payload.loan_amount <= 0) {
-    ElMessage.warning('贷款金额必须大于 0')
+  if (loanAmount.value <= 0) {
+    amountChecked.value = true
     return
   }
+  amountChecked.value = false
   submitting.value = true
   try {
     if (editingId.value) {
