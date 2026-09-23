@@ -5,6 +5,9 @@
 
     <div class="toolbar">
       <el-button type="primary" :icon="Plus" @click="openCreate">新增贷款</el-button>
+      <el-tooltip content="刷新列表" placement="top">
+        <el-button :icon="Refresh" :loading="loading" @click="load" />
+      </el-tooltip>
     </div>
 
     <el-table :data="list" v-loading="loading" border stripe>
@@ -138,7 +141,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import SearchForm from '@/components/SearchForm.vue'
 import { createLoan, deleteLoan, getLoans, updateLoan } from '@/api/loans'
 
@@ -378,6 +381,9 @@ onMounted(load)
 
 <style scoped>
 .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 16px;
 }
 

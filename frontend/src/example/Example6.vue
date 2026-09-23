@@ -78,7 +78,9 @@
     <h4>7. 合并单元格 spanMethod 与树形数据 treeProps</h4>
 
     <sc-table :schema="schema7"></sc-table>
-
+    <p class="tips">
+      分割线-----------------
+    </p>
     <sc-table :schema="schema8"></sc-table>
 
     <p class="tips">

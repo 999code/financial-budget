@@ -9,21 +9,32 @@
         lazy
       >
         <!-- 搜索：名称 / 分类 / 金额区间 / 时间区间 -->
-        <search-form
-          :schema="searchSchemaOf(t.name)"
-          :collapsed-count="3"
-          @search="load(t.name)"
-          @reset="onReset(t.name)"
-        />
+        <el-card>
+          <search-form
+            :schema="searchSchemaOf(t.name)"
+            :collapsed-count="3"
+            @search="load(t.name)"
+            @reset="onReset(t.name)"
+          />
+        </el-card>
+        <el-card style="margin-top: 30px;">
 
-        <div class="toolbar">
-          <el-button type="primary" :icon="Plus" @click="openCreate(t.name)">
-            新增{{ t.label }}
-          </el-button>
-        </div>
+          <div class="toolbar">
+            <el-button type="primary" :icon="Plus" @click="openCreate(t.name)">
+              新增{{ t.label }}
+            </el-button>
+            <el-tooltip content="刷新列表" placement="top">
+              <el-button
+                :icon="Refresh"
+                :loading="state[t.name].loading"
+                @click="load(t.name)"
+              />
+            </el-tooltip>
+          </div>
+          <!-- 列表：名称 / 分类 / 金额 / 周期 / 时间 / 操作 -->
+          <sc-table :schema="tableSchemaOf(t.name)" v-loading="state[t.name].loading" />
+        </el-card>
 
-        <!-- 列表：名称 / 分类 / 金额 / 周期 / 时间 / 操作 -->
-        <sc-table :schema="tableSchemaOf(t.name)" v-loading="state[t.name].loading" />
       </el-tab-pane>
     </el-tabs>
 
@@ -127,7 +138,7 @@
 <script setup>
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import SearchForm from '@/components/SearchForm.vue'
 import {
   createIncomeExpense,
@@ -717,6 +728,9 @@ onMounted(() => {
   padding-top: 16px;
 }
 .toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 16px 0 12px;
 }
 .ie-details {
