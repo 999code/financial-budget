@@ -86,9 +86,15 @@
       组件默认开启了 <code>defaultExpandAll</code>，传 <code>false</code> 可关闭。
     </p>
 
-    <h4>8. 综合示例：sc-form 查询 + loading + 分页</h4>
+    <h4>8. 综合示例：search-form 查询 + loading + 分页</h4>
 
-    <sc-form :schema="schemaQuery"></sc-form>
+    <search-form :schema="querySchema" :loading="loading" @search="onSearch" @reset="onReset" />
+
+    <p class="tips">
+      <code>search-form</code> 内部用 <code>sc-form</code> 渲染栅格表单，并自带「搜索 / 重置 / 展开收起」按钮：
+      筛选项超过 <code>collapsedCount</code>（默认 3）时才出现展开/收起，按钮组始终排在当前行的末尾；
+      触发搜索时通过 <code>@search</code> 回调，<code>loading</code> 属性会让搜索按钮进入加载态。
+    </p>
 
     <sc-table v-loading="loading" :schema="schema9"></sc-table>
 
@@ -105,6 +111,7 @@
 <script setup>
 import { ElMessage } from 'element-plus';
 import { computed, reactive, ref } from 'vue';
+import SearchForm from '@/components/SearchForm.vue';
 
 // 状态字典，可抽离成公用的枚举文件
 const STATUS_MAP = {
@@ -183,6 +190,10 @@ const statusOptions = [
   { label: '试用', value: 2 },
   { label: '离职', value: 3 },
 ];
+const deptOptions = [
+  { label: '全部', value: '' },
+  ...[...new Set(employees.map(item => item.dept))].map(dept => ({ label: dept, value: dept })),
+];
 const visibleColumns = ref(['dept', 'position', 'salary', 'entryDate', 'address']);
 const columnOptions = [
   { label: '部门', value: 'dept' },
@@ -239,6 +250,8 @@ const treeData = [{
 const query = reactive({
   name: '',
   status: '',
+  dept: '',
+  date_range: [],
 });
 const loading = ref(false);
 const resultList = ref([...employees]);
@@ -291,11 +304,15 @@ function onSearch() {
   loading.value = true;
   // 模拟接口请求
   setTimeout(() => {
-    const { name, status } = query;
+    const { name, status, dept, date_range } = query;
+    const [start, end] = Array.isArray(date_range) ? date_range : [];
     resultList.value = employees.filter(item => {
       const matchName = !name || item.name.includes(name);
       const matchStatus = status === '' || status === undefined || item.status === status;
-      return matchName && matchStatus;
+      const matchDept = !dept || item.dept === dept;
+      // 日期为 YYYY-MM-DD，字典序即时间序，可直接比较
+      const matchDate = (!start || item.entryDate >= start) && (!end || item.entryDate <= end);
+      return matchName && matchStatus && matchDept && matchDate;
     });
     currentPage.value = 1;
     loading.value = false;
@@ -305,6 +322,8 @@ function onSearch() {
 function onReset() {
   query.name = '';
   query.status = '';
+  query.dept = '';
+  query.date_range = [];
   resultList.value = [...employees];
   currentPage.value = 1;
 }
@@ -577,14 +596,18 @@ const schema8 = computed(() => ({
   }],
 }));
 
-const schemaQuery = computed(() => ({
-  inline: true,
+// search-form：只声明筛选项，搜索 / 重置 / 展开收起按钮由组件内部补齐
+const querySchema = computed(() => ({
+  colSpan: 6,
+  labelPosition: 'top',
+  gutter: 18,
   model: query,
   formItems: [{
-    type: 'input',
+    type: 'input.trim',
     label: '姓名',
     field: 'name',
     placeholder: '请输入姓名',
+    clearable: true,
   }, {
     type: 'select',
     label: '状态',
@@ -593,19 +616,23 @@ const schemaQuery = computed(() => ({
     placeholder: '全部',
     options: statusOptions,
   }, {
-    type: 'button',
-    content: '搜索',
-    subtype: 'primary',
-    on: {
-      click: onSearch,
-    },
+    type: 'select',
+    label: '部门',
+    field: 'dept',
+    clearable: true,
+    placeholder: '全部',
+    options: deptOptions,
   }, {
-    type: 'button',
-    content: '重置',
-    plain: true,
-    on: {
-      click: onReset,
-    },
+    type: 'date-picker',
+    subtype: 'daterange',
+    label: '入职日期',
+    field: 'date_range',
+    valueFormat: 'YYYY-MM-DD',
+    startPlaceholder: '开始日期',
+    endPlaceholder: '结束日期',
+    rangeSeparator: '至',
+    unlinkPanels: true,
+    style: 'width: 100%',
   }],
 }));
 
