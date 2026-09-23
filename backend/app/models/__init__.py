@@ -6,6 +6,7 @@ from app.models.transaction import Transaction
 from app.models.budget import Budget
 from app.models.income_expense import IncomeExpense
 from app.models.income_expense_detail import IncomeExpenseDetail
+from app.models.loan import Loan
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "Budget",
     "IncomeExpense",
     "IncomeExpenseDetail",
+    "Loan",
 ]

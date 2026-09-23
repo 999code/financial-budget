@@ -25,6 +25,10 @@
           <el-icon><RefreshRight /></el-icon>
           <span>收支管理</span>
         </el-menu-item>
+        <el-menu-item index="/loans">
+          <el-icon><CreditCard /></el-icon>
+          <span>贷款管理</span>
+        </el-menu-item>
         <el-menu-item index="/profile">
           <el-icon><User /></el-icon>
           <span>个人信息</span>

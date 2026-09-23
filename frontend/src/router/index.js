@@ -15,6 +15,7 @@ const routes = [
       { path: 'accounts', name: 'accounts', component: () => import('@/views/Accounts.vue'), meta: { title: '账户管理' } },
       { path: 'users', name: 'users', component: () => import('@/views/Users.vue'), meta: { title: '用户管理', admin: true } },
       { path: 'income-expense', name: 'income-expense', component: () => import('@/views/IncomeExpense.vue'), meta: { title: '收支管理' } },
+      { path: 'loans', name: 'loans', component: () => import('@/views/Loans.vue'), meta: { title: '贷款管理' } },
       { path: 'profile', name: 'profile', component: () => import('@/views/Profile.vue'), meta: { title: '个人信息' } },
       { path: 'change-password', name: 'change-password', component: () => import('@/views/ChangePassword.vue'), meta: { title: '修改密码' } },
       { path: 'example', name: 'example', component: () => import('@/views/Example.vue'), meta: { title: '示例' } }

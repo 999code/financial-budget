@@ -25,6 +25,8 @@ from app.schemas.income_expense import (
     IncomeExpenseDetailUpdate,
 )
 
+from app.schemas.loan import LoanBase, LoanCreate, LoanUpdate, LoanRead
+
 __all__ = [
     "UserBase", "UserCreate", "UserRead", "UserUpdate",
     "RegisterPayload", "LoginPayload", "TokenRead", "ProfileUpdate", "ChangePasswordPayload",
@@ -35,4 +37,5 @@ __all__ = [
     "IncomeExpenseBase", "IncomeExpenseCreate", "IncomeExpenseUpdate", "IncomeExpenseRead",
     "IncomeExpenseWithTotalRead",
     "IncomeExpenseDetailBase", "IncomeExpenseDetailRead", "IncomeExpenseDetailUpdate",
+    "LoanBase", "LoanCreate", "LoanUpdate", "LoanRead",
 ]

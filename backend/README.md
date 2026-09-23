@@ -53,6 +53,7 @@ uvicorn app.main:app --reload --port 8000
 | `/income-expense` | GET / POST / GET{id} / PUT{id} / DELETE{id} | 需 Bearer 令牌（仅本人数据） |
 | `/income-expense/{id}/details` | GET / POST（按期明细） | 需 Bearer 令牌（仅本人数据） |
 | `/income-expense/{id}/details/{detail_id}` | PUT / DELETE（明细编辑/软删除） | 需 Bearer 令牌（仅本人数据） |
+| `/loans` | GET / POST / GET{id} / PUT{id} / DELETE{id} | 需 Bearer 令牌（仅本人数据） |
 | `/categories` | GET / POST / GET{id} / PUT{id} / DELETE{id} | 需 Bearer 令牌（仅本人数据） |
 | `/transactions` | GET / POST / GET{id} / PUT{id} / DELETE{id} | 需 Bearer 令牌（仅本人数据） |
 | `/budgets` | GET / POST / GET{id} / PUT{id} / DELETE{id} | 需 Bearer 令牌（仅本人数据） |
@@ -64,8 +65,18 @@ uvicorn app.main:app --reload --port 8000
 
 > 修改金额时的明细同步：改动固定收支主记录的 `amount` 后，已展开的各期明细会同步为新金额，但**金额被单独调整过的期次保持不动**（判定依据是该期金额是否仍等于旧金额，用 0.005 容差比较浮点）。这样「整体调价」与「某月房租上涨」两种场景可以共存，总金额随之正确汇总。
 
+## 贷款管理（loans）
+- 字段：`total_price` 总价、`principal` 本金（首付款）、`loan_amount` 贷款金额（= 总价 − 本金，前端自动算出、可手动改）、`annual_rate` 年利率(%)、`years` 贷款年限（年）、`start_date` 起始（首次还款）日期、`repayment_method` 还款方式。
+- 还款方式：
+  - `equal_installment` 等额本息——每月还款额固定：`M = P·r·(1+r)^n / ((1+r)^n − 1)`，其中 `r = 年利率/100/12`、`n = 年限×12`。
+  - `equal_principal` 等额本金——每月归还本金固定、利息递减：首月 `P/n + P·r`，末月 `P/n + (P/n)·r`。
+  - 年利率为 0（免息）时直接按 `P/n` 摊到每期。
+- 接口额外返回三个计算字段：`monthly_payment`（首月月供，等额本息即每期固定值）、`last_month_payment`（末月月供，等额本金低于首月）、`end_date`（最后一期还款日 = 起始日 + (期数−1) 个月）。
+- **月供自动同步到固定收支**：创建贷款时会生成一条名为「<贷款名>-月供」的固定支出（`kind=fixed`、`category=expense`、`period=monthly`，起始时间 = 贷款起始日，`end_date` = 最后一期还款日），因此明细只会展开到贷款到期为止；改贷款（金额/利率/年限/起始日/名称）会联动更新该收支，金额变化时同步已展开的期次（手动调过的期次保持不动）；删除贷款时该收支及其按期明细一并清除。贷款表用 `income_expense_id` 记录这条关联。
+- 等额本金的月供逐月递减，同步到固定收支时取**首月**金额，备注中会标注首月/末月，便于识别。
+
 ## 数据隔离（多账号）
-- 业务表（accounts / categories / transactions / budgets / income_expenses）均带 `owner_id`（外键 `users.id`），所有业务接口只返回、且只允许操作**当前登录用户自己**的数据。
+- 业务表（accounts / categories / transactions / budgets / income_expenses / loans）均带 `owner_id`（外键 `users.id`），所有业务接口只返回、且只允许操作**当前登录用户自己**的数据。
 - 列表按 `owner_id` 过滤；按 id 的单条读/改/删会校验归属，不属于自己的一律返回 **404**（刻意不区分 403 与 404，避免接口被用来越权探测他人数据是否存在）。
 - 创建时由服务端强制写入 `owner_id = 当前用户`，客户端传入的 `owner_id` 会被忽略；编辑时也不允许变更归属。
 - 交易、预算所引用的账户与分类必须属于自己，否则 400。

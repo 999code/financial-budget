@@ -196,6 +196,25 @@ def create_item(
     return item
 
 
+def sync_detail_amounts(db: Session, record: IncomeExpense, old_amount: Optional[float]) -> None:
+    """金额变化后同步已展开的期次。
+
+    只改「金额仍等于旧值」的期次；用户单独调过金额的期次（如某月房租上涨）保持不动。
+    用容差比较避免浮点误差导致漏同步。
+    """
+    if old_amount is None or record.amount == old_amount:
+        return
+    db.query(IncomeExpenseDetail).filter(
+        IncomeExpenseDetail.record_id == record.id,
+        IncomeExpenseDetail.is_deleted.is_(False),
+        func.abs(IncomeExpenseDetail.amount - old_amount) < 0.005,
+    ).update(
+        {IncomeExpenseDetail.amount: record.amount},
+        synchronize_session=False,
+    )
+    db.commit()
+
+
 @router.get("/{item_id}", response_model=schemas.IncomeExpenseRead)
 def get_item(
     item_id: int,
@@ -228,19 +247,7 @@ def update_item(
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
-    # 金额变化时同步已展开的期次：只改「金额仍等于旧值」的那些，
-    # 用户单独调过金额的期次（如某月房租上涨）保持不动。
-    # 用容差比较避免浮点误差导致漏同步。
-    if "amount" in updates and old_amount is not None and item.amount != old_amount:
-        db.query(IncomeExpenseDetail).filter(
-            IncomeExpenseDetail.record_id == item.id,
-            IncomeExpenseDetail.is_deleted.is_(False),
-            func.abs(IncomeExpenseDetail.amount - old_amount) < 0.005,
-        ).update(
-            {IncomeExpenseDetail.amount: item.amount},
-            synchronize_session=False,
-        )
-        db.commit()
+    sync_detail_amounts(db, item, old_amount)
     ensure_details(item, db)  # 改了金额/周期/时间后补齐新产生的期次
     return item
 
