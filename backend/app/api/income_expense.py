@@ -221,12 +221,26 @@ def update_item(
             updates.get("kind", item.kind),
             updates.get("period", item.period),
         )
+    old_amount = item.amount
     for key, value in updates.items():
         if key == "owner_id":
             continue
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
+    # 金额变化时同步已展开的期次：只改「金额仍等于旧值」的那些，
+    # 用户单独调过金额的期次（如某月房租上涨）保持不动。
+    # 用容差比较避免浮点误差导致漏同步。
+    if "amount" in updates and old_amount is not None and item.amount != old_amount:
+        db.query(IncomeExpenseDetail).filter(
+            IncomeExpenseDetail.record_id == item.id,
+            IncomeExpenseDetail.is_deleted.is_(False),
+            func.abs(IncomeExpenseDetail.amount - old_amount) < 0.005,
+        ).update(
+            {IncomeExpenseDetail.amount: item.amount},
+            synchronize_session=False,
+        )
+        db.commit()
     ensure_details(item, db)  # 改了金额/周期/时间后补齐新产生的期次
     return item
 
