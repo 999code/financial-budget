@@ -62,3 +62,52 @@ def ensure_columns(base):
                 conn.execute(text(f"ALTER TABLE {table.name} ADD COLUMN {' '.join(segments)}"))
                 added.append(f"{table.name}.{col.name}")
     return added
+
+
+def _python_default_literal(column):
+    """取出列上的 Python 侧默认值（标量或零参 callable），转成 SQL 字面量。"""
+    default = column.default
+    if default is None:
+        return None
+    arg = getattr(default, "arg", None)
+    if callable(arg):
+        try:
+            arg = arg(None)
+        except TypeError:
+            return None
+    if isinstance(arg, bool):
+        return 1 if arg else 0
+    if isinstance(arg, (int, float)):
+        return arg
+    if isinstance(arg, str):
+        return f"'{arg}'"
+    return None
+
+
+def backfill_nulls(base):
+    """把历史行中的 NULL 回填成模型默认值。
+
+    迁移加列时若该列还没写 server_default，SQLite 会把老行的值留成 NULL，
+    读取时会被 Pydantic 判为类型错误（例如 bool 字段收到 None）。这里按模型
+    声明的 Python 默认值补一遍，保证升级后老数据仍然可读。
+    """
+    inspector = inspect(engine)
+    filled = []
+    with engine.begin() as conn:
+        for table in base.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing = {col["name"] for col in inspector.get_columns(table.name)}
+            for col in table.columns:
+                if col.name == "id" or col.name not in existing:
+                    continue
+                literal = _python_default_literal(col)
+                if literal is None:
+                    continue
+                result = conn.execute(
+                    text(f"UPDATE {table.name} SET {col.name} = :val WHERE {col.name} IS NULL"),
+                    {"val": literal},
+                )
+                if result.rowcount:
+                    filled.append(f"{table.name}.{col.name}({result.rowcount})")
+    return filled

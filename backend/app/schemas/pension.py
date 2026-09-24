@@ -14,13 +14,18 @@ from app.models.pension import (
     DIRECTION_EXPENSE,
     ENTERPRISE,
     GOVERNMENT,
+    POST_CADRE,
+    POST_WORKER,
     RESIDENT,
     SCHEME_TEXT,
     VALID_DIRECTIONS,
     VALID_SCHEMES,
+    VALID_TRANSITION_FORMULAS,
 )
 
 DIRECTION_TEXT = {"income": "领取", "expense": "缴费"}
+GENDER_TEXT = {"male": "男", "female": "女"}
+POST_TEXT = {POST_WORKER: "工人岗（原50岁）", POST_CADRE: "干部/技术岗（原55岁）"}
 
 
 def _check_scheme(value: str) -> str:
@@ -54,13 +59,39 @@ class PensionPersonBase(BaseModel):
     salary: float = 0.0  # 职工=月工资；居民=年缴费档次
     birth_date: Optional[date] = None
     retire_date: Optional[date] = None
+    gender: Optional[str] = None  # male/female，用于推算法定退休年龄
+    post_type: Optional[str] = None  # 女性岗位：worker/cadre
     contribution_years: float = 0.0
     personal_account_balance: float = 0.0
+    auto_balance: bool = False  # 按记账利率自动推算个人账户储存额
     deemed_years: float = 0.0
     deemed_index: Optional[float] = None
     annuity_balance: float = 0.0
+    enterprise_annuity_balance: float = 0.0  # 企业年金
+    private_pension_balance: float = 0.0  # 第三支柱个人养老金
+    flexible: bool = False  # 灵活就业（缴费 20% 全部个人承担）
     resident_base: Optional[float] = None
     note: Optional[str] = None
+
+    @field_validator("gender")
+    @classmethod
+    def _gender(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        text = str(v).strip().lower()
+        if text not in ("male", "female"):
+            raise ValueError("性别必须为 male(男) 或 female(女)")
+        return text
+
+    @field_validator("post_type")
+    @classmethod
+    def _post(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        text = str(v).strip().lower()
+        if text not in (POST_WORKER, POST_CADRE):
+            raise ValueError("女性岗位必须为 worker 或 cadre")
+        return text
 
     @field_validator("name")
     @classmethod
@@ -86,11 +117,17 @@ class PensionPersonUpdate(BaseModel):
     salary: Optional[float] = None
     birth_date: Optional[date] = None
     retire_date: Optional[date] = None
+    gender: Optional[str] = None
+    post_type: Optional[str] = None
     contribution_years: Optional[float] = None
     personal_account_balance: Optional[float] = None
+    auto_balance: Optional[bool] = None
     deemed_years: Optional[float] = None
     deemed_index: Optional[float] = None
     annuity_balance: Optional[float] = None
+    enterprise_annuity_balance: Optional[float] = None
+    private_pension_balance: Optional[float] = None
+    flexible: Optional[bool] = None
     resident_base: Optional[float] = None
     note: Optional[str] = None
 
@@ -109,11 +146,37 @@ class PensionPersonUpdate(BaseModel):
     def _scheme(cls, v: Optional[str]) -> Optional[str]:
         return None if v is None else _check_scheme(v)
 
+    @field_validator("gender")
+    @classmethod
+    def _gender(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        text = str(v).strip().lower()
+        if text not in ("male", "female"):
+            raise ValueError("性别必须为 male(男) 或 female(女)")
+        return text
+
+    @field_validator("post_type")
+    @classmethod
+    def _post(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        text = str(v).strip().lower()
+        if text not in (POST_WORKER, POST_CADRE):
+            raise ValueError("女性岗位必须为 worker 或 cadre")
+        return text
+
 
 class PensionPersonRead(PensionPersonBase):
     id: int
     scheme_text: str = ""
+    gender_text: str = ""
+    post_text: str = ""
     retire_age: Optional[float] = None  # 退休时的年龄（岁，用于查计发月数）
+    legal_retire_age: Optional[float] = None  # 按渐进式延退政策推算的法定退休年龄（岁）
+    legal_retire_date: Optional[date] = None  # 推算的法定退休日期
+    retire_source: str = ""  # manual(手填) / legal(政策推算)
+    estimated_balance: float = 0.0  # 按记账利率推算的个人账户储存额（供参考）
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -121,49 +184,83 @@ class PensionPersonRead(PensionPersonBase):
 
 # ---------------------------------------------------------------- 参数配置
 class PensionParamsBase(BaseModel):
+    region: Optional[str] = None  # 参保地区（选择后自动带出计发基数）
     base_number: float = 8000.0
-    avg_index: float = 1.0
+    avg_index: float = 0.6  # 多数企业按下限缴，默认取 0.6；实际以本人历年指数为准
     base_floor: float = 0.6
     base_cap: float = 3.0
+    book_rate: float = 1.5  # 职工个人账户记账利率(%)，2025 年为 1.5%
+    resident_book_rate: float = 3.6  # 居民记账利率(%)，各省另行公布
+    wage_growth: float = 6.0  # 缴费基数年增长率(%)，用于推算账户储存额
     personal_rate: float = 8.0
+    flexible_rate: float = 20.0  # 灵活就业人员缴费费率(%)
     annuity_personal_rate: float = 4.0
     company_rate: float = 16.0
     include_company: bool = False
-    deemed_index: float = 1.0
+    deemed_index: Optional[float] = None  # 留空时回落到本人平均缴费指数
     transition_coef: float = 1.3
+    transition_formula: str = "sichuan"  # sichuan(用平均缴费指数)/guangdong(用视同缴费指数)
     retire_age: float = 60.0
+    adjust_rate: float = 2.0  # 退休后养老金年调整比例(%)
     resident_base: float = 163.0
     resident_divisor: float = 139.0
     long_pay_threshold: float = 15.0
     long_pay_bonus: float = 2.0
     elderly_age: float = 65.0
     elderly_bonus: float = 0.0
+    elderly_tiers: Dict[str, float] = {}  # {"65":5,"70":10} 高龄加发阶梯（元/月）
     divisor_map: Dict[str, float] = dict(DEFAULT_DIVISOR_MAP)
     resident_levels: List[float] = list(DEFAULT_RESIDENT_LEVELS)
     resident_subsidy_map: Dict[str, float] = dict(DEFAULT_RESIDENT_SUBSIDY)
 
+    @field_validator("transition_formula")
+    @classmethod
+    def _formula(cls, v: str) -> str:
+        text = str(v or "").strip().lower()
+        if text not in VALID_TRANSITION_FORMULAS:
+            raise ValueError("过渡性口径必须为 sichuan 或 guangdong")
+        return text
+
 
 class PensionParamsUpdate(BaseModel):
+    region: Optional[str] = None
     base_number: Optional[float] = None
     avg_index: Optional[float] = None
     base_floor: Optional[float] = None
     base_cap: Optional[float] = None
+    book_rate: Optional[float] = None
+    resident_book_rate: Optional[float] = None
+    wage_growth: Optional[float] = None
     personal_rate: Optional[float] = None
+    flexible_rate: Optional[float] = None
     annuity_personal_rate: Optional[float] = None
     company_rate: Optional[float] = None
     include_company: Optional[bool] = None
     deemed_index: Optional[float] = None
     transition_coef: Optional[float] = None
+    transition_formula: Optional[str] = None
     retire_age: Optional[float] = None
+    adjust_rate: Optional[float] = None
     resident_base: Optional[float] = None
     resident_divisor: Optional[float] = None
     long_pay_threshold: Optional[float] = None
     long_pay_bonus: Optional[float] = None
     elderly_age: Optional[float] = None
     elderly_bonus: Optional[float] = None
+    elderly_tiers: Optional[Dict[str, float]] = None
     divisor_map: Optional[Dict[str, float]] = None
     resident_levels: Optional[List[float]] = None
     resident_subsidy_map: Optional[Dict[str, float]] = None
+
+    @field_validator("transition_formula")
+    @classmethod
+    def _formula(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        text = str(v).strip().lower()
+        if text not in VALID_TRANSITION_FORMULAS:
+            raise ValueError("过渡性口径必须为 sichuan 或 guangdong")
+        return text
 
 
 class PensionParamsRead(PensionParamsBase):
@@ -246,6 +343,13 @@ class PensionRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PensionRegionItem(BaseModel):
+    """可选择的参保地区及其计发基数。"""
+
+    name: str
+    base_number: float
 
 
 # ---------------------------------------------------------------- 同步到收支管理

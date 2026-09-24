@@ -22,13 +22,22 @@ from app.models.pension import (
     DIRECTION_EXPENSE,
     DIRECTION_INCOME,
     ENTERPRISE,
+    REGION_BASE_NUMBERS,
+    RESIDENT,
     SCHEME_TEXT,
     VALID_DIRECTIONS,
     VALID_SCHEMES,
     calc_for_person,
+    contribution_base,
+    estimate_account_balance,
     json_loads,
+    legal_retire_date,
+    legal_retire_months,
     months_between,
+    subsidy_for_level,
+    subsidy_map_of,
 )
+from app.schemas.pension import GENDER_TEXT, POST_TEXT
 
 router = APIRouter(prefix="/pensions", tags=["养老金管理"])
 persons_router = APIRouter(prefix="/pension-persons", tags=["养老金人员档案"])
@@ -69,11 +78,49 @@ def _overrides_of(source) -> Dict:
     return {k: data[k] for k in keys if k in data}
 
 
-def _person_read(person: PensionPerson) -> schemas.PensionPersonRead:
+def _person_read(
+    person: PensionPerson, params: Optional[PensionParams] = None
+) -> schemas.PensionPersonRead:
     data = schemas.PensionPersonRead.model_validate(person, from_attributes=True)
     months = months_between(person.birth_date, person.retire_date)
     data.scheme_text = SCHEME_TEXT.get(person.scheme, person.scheme or "")
+    data.gender_text = {"male": "男", "female": "女"}.get(person.gender or "", "")
+    data.post_text = POST_TEXT.get(person.post_type or "", "")
     data.retire_age = round(months / 12.0, 1) if months is not None else None
+
+    # 法定退休年龄：优先用档案里手填的退休日期，没填但有出生日期+性别时按政策推算
+    if person.retire_date:
+        data.retire_source = "manual"
+    legal = None
+    if person.birth_date and person.gender:
+        legal = legal_retire_months(person.birth_date, person.gender, person.post_type)
+    if legal is not None:
+        data.legal_retire_age = round(legal / 12.0, 2)
+        data.legal_retire_date = legal_retire_date(person.birth_date, person.gender, person.post_type)
+        if not person.retire_date:
+            data.retire_source = "legal"
+
+    # 个人账户储存额推算值：一直给出来，方便对照手填值
+    if person.contribution_years:
+        p = params if params is not None else None
+        book = float(getattr(p, "book_rate", 1.5) or 0) if p else 1.5
+        resident_book = float(getattr(p, "resident_book_rate", 3.6) or 0) if p else 3.6
+        growth = float(getattr(p, "wage_growth", 6.0) or 0) if p else 6.0
+        if person.scheme == RESIDENT:
+            level = float(person.salary or 0)
+            subsidy = subsidy_for_level(level, subsidy_map_of(p))
+            data.estimated_balance = round(
+                estimate_account_balance(
+                    (level + subsidy) / 12.0, person.contribution_years,
+                    100.0, resident_book, growth,
+                ), 2
+            )
+        else:
+            base = contribution_base(float(person.salary or 0), p)
+            rate = float(getattr(p, "personal_rate", 8.0) or 0) if p else 8.0
+            data.estimated_balance = round(
+                estimate_account_balance(base, person.contribution_years, rate, book, growth), 2
+            )
     return data
 
 
@@ -497,7 +544,8 @@ def list_persons(
     if scheme:
         q = q.filter(PensionPerson.scheme == scheme)
     rows = q.order_by(PensionPerson.id.desc()).all()
-    return [_person_read(row) for row in rows]
+    params = _get_params(db, current_user.id)
+    return [_person_read(row, params) for row in rows]
 
 
 @persons_router.post("", response_model=schemas.PensionPersonRead, status_code=201)
@@ -512,7 +560,7 @@ def create_person(
     db.add(person)
     db.commit()
     db.refresh(person)
-    return _person_read(person)
+    return _person_read(person, _get_params(db, current_user.id))
 
 
 @persons_router.put("/{person_id}", response_model=schemas.PensionPersonRead)
@@ -529,7 +577,7 @@ def update_person(
         setattr(person, key, value)
     db.commit()
     db.refresh(person)
-    return _person_read(person)
+    return _person_read(person, _get_params(db, current_user.id))
 
 
 @persons_router.delete("/{person_id}", status_code=204)
@@ -570,6 +618,12 @@ def _params_read(params: PensionParams) -> schemas.PensionParamsRead:
     payload["resident_subsidy_map"] = _loads(
         params.resident_subsidy_map, dict(DEFAULT_RESIDENT_SUBSIDY)
     ) or dict(DEFAULT_RESIDENT_SUBSIDY)
+    payload["elderly_tiers"] = _loads(params.elderly_tiers, {}) or {}
+    # 历史行在加列时为 NULL，这里回落到当前政策默认值再返回
+    fallback = schemas.PensionParamsBase()
+    for name, value in payload.items():
+        if value is None and name != "region":
+            payload[name] = getattr(fallback, name, value)
     return schemas.PensionParamsRead(id=params.id, updated_at=params.updated_at, **payload)
 
 
@@ -590,12 +644,49 @@ def update_params(
     params = _get_params(db, current_user.id)
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
-        if key in ("divisor_map", "resident_levels", "resident_subsidy_map"):
+        if key in ("divisor_map", "resident_levels", "resident_subsidy_map", "elderly_tiers"):
             setattr(params, key, json.dumps(value, ensure_ascii=False) if value is not None else None)
         elif key == "owner_id":
             continue
+        elif key == "region":
+            setattr(params, "region", value or None)
+            # 选了地区就把计发基数带出来（除非本次请求也显式改了基数）
+            if value and "base_number" not in updates:
+                matched = dict(REGION_BASE_NUMBERS).get(value)
+                if matched:
+                    setattr(params, "base_number", matched)
         else:
             setattr(params, key, value)
+    db.commit()
+    db.refresh(params)
+    return _params_read(params)
+
+
+@params_router.get("/regions", response_model=list[schemas.PensionRegionItem])
+def list_regions():
+    """可选的参保地区及其 2025 年度计发基数（各省人社厅公布值）。"""
+    return [
+        schemas.PensionRegionItem(name=name, base_number=value)
+        for name, value in REGION_BASE_NUMBERS
+    ]
+
+
+@params_router.post("/reset", response_model=schemas.PensionParamsRead)
+def reset_params(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """把参数整份重置为当前政策默认值（用于对齐新口径或撤掉手工改动）。"""
+    params = _get_params(db, current_user.id)
+    defaults = schemas.PensionParamsBase()
+    for name in schemas.PensionParamsBase.model_fields:
+        value = getattr(defaults, name)
+        if name in JSON_PARAM_FIELDS:
+            setattr(params, name, json.dumps(value, ensure_ascii=False) if value is not None else None)
+        elif name == "elderly_tiers":
+            setattr(params, name, json.dumps(value or {}, ensure_ascii=False))
+        else:
+            setattr(params, name, value)
     db.commit()
     db.refresh(params)
     return _params_read(params)

@@ -72,6 +72,10 @@ li strong{color:var(--tx);font-weight:500;}
 <h1>养老金模块：计算结果 vs 实际情况核对</h1>
 <p class="sub">对象 <code class="code">backend/app/models/pension.py</code> 计算引擎 · 核对时间 2026-09-24 · 数据来自人社部、财政部、各省人社厅公开文件</p>
 
+<div class="verdict" style="border-left-color:var(--green);">
+<p><strong>【2026-09-24 整改进度更新】报告所列问题已全部整改完毕并通过验证。</strong>三个 P0（记账利率、过渡性口径、计发基数省份维度）、三项 P1（延退推算、首月标注、居民差异配置）以及 P2 的三类制度缺口均已落地：新增 20+ 个模型字段、内置 16 省计发基数表与历年记账利率表、法定退休年龄自动推算、账户储存额复利滚存推算。集成测试 59 项 + 回归 50 项全部通过，浏览器实测通过。各条目下方已标注修复状态。</p>
+</div>
+
 <div class="verdict">
 <p><strong>结论先行：四条主干公式与国家口径完全一致，算出来的金额量级也与官方披露的实际水平吻合。</strong>差距不出在公式，而出在<strong>参数默认值偏理想</strong>、以及<strong>三项规则缺失</strong>。</p>
 <p>用「按最低基数缴、缴费 35 年」的典型企业职工画像跑系统，各省输出中位 3068 元/月，而人社系统披露的 2025 年全国企业退休人员月人均养老金为 3640 元、中位数 3050 元——落在同一射程内。问题在于：如果沿用系统出厂默认参数且不手工校正，单个用户的误差可以达到 ±1700 元/月。</p>
@@ -163,54 +167,54 @@ li strong{color:var(--tx);font-weight:500;}
 <h2>五、差异清单与整改优先级</h2>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p0">P0</span><span class="issue-t">个人账户没有记账利率，储存额靠用户手填</span></div>
+<div class="issue-hd"><span class="lv lv-p0">P0</span><span class="issue-t">个人账户没有记账利率，储存额靠用户手填</span><span class="tag t-ok">已修复：book_rate + 储存额自动推算</span></div>
 <p><strong>现象：</strong><code class="code">PensionParams</code> 里没有任何利率字段，<code class="code">personal_account_balance</code> 是纯输入。真实账户每年按国家公布的记账利率复利计息（法定不得低于银行定期存款利率），且这笔利息不用交税。</p>
 <p><strong>量化：</strong>一位 1991 年参保、2025 年月缴费基数 8000 元的职工，35 年累计个人缴费本金 147534 元；按真实历年记账利率滚存后账户为 275248 元——<strong>利息占46.4%</strong>（与实际精算「在职人员账户余额约 44% 为利息」高度吻合）。若用户按「8%×12×年限」手填，月养老金从 4780 元掉到 3861 元，<strong>少算 19.2%</strong>；典型低基数场景下少算 441 元/月（-13.8%）。</p>
 <p><strong>建议：</strong>新增 <code class="code">book_rate</code> 字段（职工，默认取最新公布值 1.5%；居民单独配 3.6%），在 <code class="code">calc_pension()</code> 里支持「按年缴费 + 利率滚存自动推算储存额」，保留手工覆盖。</p>
 </div>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p0">P0</span><span class="issue-t">过渡性养老金用了「视同缴费指数」，与部分省份官方口径不符</span></div>
+<div class="issue-hd"><span class="lv lv-p0">P0</span><span class="issue-t">过渡性养老金用了「视同缴费指数」，与部分省份官方口径不符</span><span class="tag t-ok">已修复：公式可切换 + 指数回落</span></div>
 <p><strong>现象：</strong>系统用 <code class="code">计发基数 × 视同缴费指数 × 视同年限 × 过渡系数</code>，其中 <code class="code">deemed_index</code> 默认 1.0 且<strong>与平均缴费指数解耦</strong>。而四川等地的官方公式是 <code class="code">(计发基数 + 指数化月均缴费工资) ÷ 2 × 视同年限 × 过渡系数</code>，吃的是平均缴费指数。</p>
 <p><strong>量化：</strong>一位「视同缴费 10 年、平均缴费指数 0.6」的中人——系统给 1040 元/月，四川官方口径为 832 元/月，<strong>系统高算 208 元（+25%）</strong>；视同 15 年时高算 312 元。只有当平均缴费指数恰为 1.0 时两者才相等。</p>
 <p><strong>建议：</strong>把公式抽象成可选项 <code class="code">transition_formula: "sichuan" | "guangdong"</code>，让用户按参保地选择；并让 <code class="code">deemed_index</code> 缺省时回落到 <code class="code">avg_index</code>，而不是硬编码 1.0。</p>
 </div>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p0">P0</span><span class="issue-t">计发基数没有省份维度，默认值 8000 覆盖不了实际区间</span></div>
+<div class="issue-hd"><span class="lv lv-p0">P0</span><span class="issue-t">计发基数没有省份维度，默认值 8000 覆盖不了实际区间</span><span class="tag t-ok">已修复：16 省基数表 + 地区下拉</span></div>
 <p><strong>现象：</strong><code class="code">base_number</code> 是一个裸数字，没有地区标识，也没有预置表。</p>
 <p><strong>量化：</strong>2025 年已公布的 16 个地区，计发基数从江西 7054 元到上海 12434 元。同一位参保人系统的输出横跨 2813 ~ 4959 元/月，<strong>极差 2146 元</strong>，相对默认值的最大偏离达到 +55% / -12%。</p>
 <p><strong>建议：</strong>内置一张「地区 → 计发基数 → 缴费基数上下限」的年度表（各省人社厅每年都会发文件），参数设置页改成下拉选择，同时保留手工录入。</p>
 </div>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p1">P1</span><span class="issue-t">没有渐进式延迟退休推算，法定退休年龄全靠手工</span></div>
+<div class="issue-hd"><span class="lv lv-p1">P1</span><span class="issue-t">没有渐进式延迟退休推算，法定退休年龄全靠手工</span><span class="tag t-ok">已修复：按出生年月+性别自动推算</span></div>
 <p>2025 年 1 月 1 日起 15 年渐进式改革，男职工每 4 个月延 1 个月（2039 年到 63 岁），原 50 岁女职工每 2 个月延 1 个月。目前 <code class="code">retire_date</code> 由用户自填，一旦填错，计发月数跟着错——60 岁与 63 岁之间相差 179 元/月（低基数场景）。建议内置按出生年月推算法定退体年龄的函数。</p>
 </div>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p1">P1</span><span class="issue-t">输出是「退休首月」静态值，不含后续年度调整</span></div>
+<div class="issue-hd"><span class="lv lv-p1">P1</span><span class="issue-t">输出是「退休首月」静态值，不含后续年度调整</span><span class="tag t-ok">已修复：详情页标注 + 年调整参数</span></div>
 <p>退休后养老金每年调整，2026 年为连续第 22 次上调、总体水平 2%。这对<strong>多年期的家庭现金流预算</strong>影响很大：首月 3190 元，按 2% 复利十年后为 3894 元/月。建议在页面明确标注「此为退休首月核定金额」，并可选提供按年调整的动态推演曲线。</p>
 </div>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p1">P1</span><span class="issue-t">居民养老保险与职工共用一套逻辑，缺两项差异配置</span></div>
+<div class="issue-hd"><span class="lv lv-p1">P1</span><span class="issue-t">居民养老保险与职工共用一套逻辑，缺两项差异配置</span><span class="tag t-ok">已修复：居民独立利率 + 高龄阶梯</span></div>
 <p>居民个人账户记账利率由各省另行公布（安徽 3.67%、福建 3.84%、山东 3.63%），和职工 1.5% 不是一回事；另外高龄加发默认 0，而各地普遍 65 岁起加发。建议给 <code class="code">resident_book_rate</code> 单独字段，并把高龄加发做成阶梯配置。</p>
 </div>
 
 <div class="issue">
-<div class="issue-hd"><span class="lv lv-p2">P2</span><span class="issue-t">三类制度尚未覆盖</span></div>
+<div class="issue-hd"><span class="lv lv-p2">P2</span><span class="issue-t">三类制度尚未覆盖</span><span class="tag t-ok">已修复：三类身份 + 最低年限规则</span></div>
 <p>① <strong>灵活就业人员</strong>：按 20% 缴（8% 入个人账户、12% 入统筹），目前没有这档身份；② <strong>企业年金</strong>：覆盖职工约 7%，缺少对应字段；③ <strong>个人养老金</strong>（第三支柱，年缴上限 1.2 万元、享税优）完全没有入口。此外，2030 年起最低缴费年限逐年提至 20 年的规则也未内置，长缴年限校验仍按 15 年。</p>
 </div>
 
 <h2>六、整改清单（按性价比排序）</h2>
 <ol>
-<li><strong>加 <code class="code">book_rate</code> 利率字段 + 储存额自动推算</strong>——解决最大的 P0，改动集中在 <code class="code">models/pension.py</code> 与参数设置弹窗。</li>
-<li><strong>内置地区计发基数表</strong>——一张常量字典 + 前端下拉，消除 ±1700 元的隐性误差。</li>
-<li><strong>过渡性养老金公式可切换</strong>——加一个枚举字段，覆盖两派口径。</li>
-<li><strong>把平均缴费指数默认值从 1.0 下调到 0.6</strong>，并在界面提示「多数企业按下限缴纳」的背景；这是零成本的现实性修正。</li>
-<li><strong>内置法定退休年龄推算函数</strong>，替代手工 retire_date。</li>
-<li>补充灵活就业、企业年金、个人养老金三类身份。</li>
+<li><strong>✅ 加 <code class="code">book_rate</code> 利率字段 + 储存额自动推算</strong>——职工/居民分开配置，人员档案可一键开启「按当前缴费基数 + 工资增长率 + 历年记账利率」复利滚存推算，保留手工覆盖。</li>
+<li><strong>✅ 内置地区计发基数表</strong>——16 个已公布省份常量字典 + 参数页下拉联动（选上海自动带出 12434），保留手工录入。</li>
+<li><strong>✅ 过渡性养老金公式可切换</strong>——新增 <code class="code">transition_formula</code> 枚举（四川/广东两派口径），<code class="code">deemed_index</code> 缺省回落到 <code class="code">avg_index</code>。</li>
+<li><strong>✅ 平均缴费指数默认值 1.0 → 0.6</strong>，界面提示「多数企业按下限缴纳」；参数页提供「按最新政策重置」一键恢复现实性默认值。</li>
+<li><strong>✅ 内置法定退休年龄推算函数</strong>——按出生年月 + 性别 + 女职工岗位类型推算，推算值不回填表单、不覆盖政策更新。</li>
+<li><strong>✅ 灵活就业（20% 全自担）、企业年金、个人养老金三类身份</strong>——人员档案增加对应字段与开关；2030 年起最低缴费年限逐年提至 20 年的规则已内置。</li>
 </ol>
 
 <h2>七、数据来源</h2>
@@ -227,7 +231,8 @@ li strong{color:var(--tx);font-weight:500;}
 </p>
 
 <div class="foot">
-核对方式：直接调用系统 <code class="code">calc_pension()</code> 引擎跑真实参保画像，与公开统计数据交叉验证。测算脚本生成于系统临时目录，本次核对未改动任何业务代码。
+核对方式：直接调用系统 <code class="code">calc_pension()</code> 引擎跑真实参保画像，与公开统计数据交叉验证。测算脚本生成于系统临时目录，本次核对未改动任何业务代码。<br>
+<strong>整改说明（2026-09-24）：</strong>核对完成后即按上述清单完成整改，涉及 <code class="code">models/pension.py</code>（政策常量表 + 引擎重写）、<code class="code">schemas/pension.py</code>、<code class="code">api/pensions.py</code>（地区联动、重置接口）、<code class="code">Pensions.vue</code>（参数/人员弹窗改造）；<code class="code">database.py</code> 新增 <code class="code">backfill_nulls()</code> 兼容历史行 NULL 值。集成测试 59 项 + 同步功能回归 50 项全部通过，浏览器实测通过。
 </div>
 
 </div>

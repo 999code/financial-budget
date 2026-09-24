@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import Base, engine, ensure_columns, get_db
+from app.database import Base, backfill_nulls, engine, ensure_columns, get_db
 import app.models  # noqa: F401  确保模型已注册到 Base.metadata
 from app.api import accounts, budgets, categories, transactions, users, income_expense, loans, auth, pensions
 from app.api.auth import get_current_user
@@ -19,6 +19,8 @@ from app.models import Account, Transaction, User
 Base.metadata.create_all(bind=engine)
 # SQLite 轻量迁移：为已存在的表补上后续新增的列（如 income_expenses.period）
 ensure_columns(Base)
+# 补列时老行会留 NULL，这里按模型默认值回填，避免读取时类型校验失败
+backfill_nulls(Base)
 
 app = FastAPI(title=settings.PROJECT_NAME, version="0.1.0")
 

@@ -46,6 +46,7 @@ from app.schemas.pension import (
     PensionRead,
     PensionSyncRequest,
     PensionSyncResult,
+    PensionRegionItem,
     PensionPreviewRequest,
     PensionPreviewResult,
     PensionMonthStat,
@@ -68,7 +69,7 @@ __all__ = [
     "PensionPersonBase", "PensionPersonCreate", "PensionPersonUpdate", "PensionPersonRead",
     "PensionParamsBase", "PensionParamsUpdate", "PensionParamsRead",
     "PensionCreate", "PensionUpdate", "PensionRead",
-    "PensionSyncRequest", "PensionSyncResult",
+    "PensionSyncRequest", "PensionSyncResult", "PensionRegionItem",
     "PensionPreviewRequest", "PensionPreviewResult",
     "PensionMonthStat", "PensionSchemeStat", "PensionStats",
 ]

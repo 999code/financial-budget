@@ -20,3 +20,6 @@ export const deletePensionPerson = (id) => request.delete(`/pension-persons/${id
 // 参数配置
 export const getPensionParams = () => request.get('/pension-params')
 export const updatePensionParams = (data) => request.put('/pension-params', data)
+export const resetPensionParams = () => request.post('/pension-params/reset')
+// 参保地区及其计发基数（各省人社厅公布值）
+export const getPensionRegions = () => request.get('/pension-params/regions')
