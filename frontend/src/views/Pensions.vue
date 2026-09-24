@@ -71,10 +71,24 @@
         <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ row.note || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openView(row)">查看</el-button>
             <el-button link type="primary" @click="openEdit(row)">修改</el-button>
+            <el-tooltip
+              :content="row.synced_income_expense_id
+                ? '已同步过，再次点击将更新收支管理中对应的那条记录'
+                : '同步到收支管理的固定收支列表'"
+              placement="top"
+            >
+              <el-button
+                link
+                :type="row.synced_income_expense_id ? 'success' : 'primary'"
+                @click="openSync(row)"
+              >
+                {{ row.synced_income_expense_id ? '已同步' : '同步' }}
+              </el-button>
+            </el-tooltip>
             <el-button link type="danger" @click="remove(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -505,6 +519,62 @@
         <el-button type="primary" :loading="paramsSubmitting" @click="submitParams">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 同步到收支管理的固定收支 -->
+    <el-dialog v-model="syncVisible" title="同步到收支管理" width="560px">
+      <el-alert
+        type="info"
+        show-icon
+        :closable="false"
+        style="margin-bottom: 16px;"
+        :title="syncRow.synced_income_expense_id
+          ? '该记录已同步过，保存后将更新收支管理中对应的那条固定收支'
+          : '将在收支管理的固定收支列表新增一条：每月发生、不设终止时间'"
+      />
+      <el-form label-width="110px">
+        <el-form-item label="人员">
+          <span>{{ syncRow.person_name }}（{{ syncRow.scheme_text }}）</span>
+        </el-form-item>
+        <el-form-item label="所属月份">
+          <span>{{ syncRow.period_month }}</span>
+        </el-form-item>
+        <el-form-item label="方向与金额">
+          <span :class="syncRow.direction === 'income' ? 'income' : 'expense'">
+            {{ syncRow.direction_text }}
+            {{ syncRow.direction === 'income' ? '+' : '-' }} ¥ {{ money(syncRow.amount) }}
+          </span>
+        </el-form-item>
+        <el-form-item label="收支名称">
+          <el-input
+            v-model="syncForm.name"
+            maxlength="100"
+            clearable
+            :placeholder="syncDefaultName"
+          />
+        </el-form-item>
+        <el-form-item label="银行账户">
+          <el-select
+            v-model="syncForm.account_id"
+            placeholder="未指定账户"
+            clearable
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="opt in accountOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="syncVisible = false">取消</el-button>
+        <el-button type="primary" :loading="syncSubmitting" @click="submitSync">
+          {{ syncRow.synced_income_expense_id ? '更新同步' : '确认同步' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -513,6 +583,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Setting, User } from '@element-plus/icons-vue'
 import SearchForm from '@/components/SearchForm.vue'
+import { getAccounts } from '@/api/accounts'
+import { getIncomeExpense } from '@/api/incomeExpense'
 import {
   createPension,
   createPensionPerson,
@@ -523,6 +595,7 @@ import {
   getPensionStats,
   getPensions,
   previewPension,
+  syncPension,
   updatePension,
   updatePensionParams,
   updatePensionPerson,
@@ -792,6 +865,70 @@ async function remove(row) {
   await deletePension(row.id)
   ElMessage.success('已删除')
   load()
+}
+
+// ---------------------------------------------------------------- 同步到收支管理
+const syncVisible = ref(false)
+const syncSubmitting = ref(false)
+const syncRow = ref({})
+const accounts = ref([])
+const syncForm = reactive({ name: '', account_id: null })
+
+const accountOptions = computed(() =>
+  accounts.value.map((a) => {
+    const tail = String(a.card_number || '').replace(/\s+/g, '').slice(-4)
+    return { label: tail ? `${a.name}（尾号 ${tail}）` : a.name, value: a.id }
+  })
+)
+const syncDefaultName = computed(() =>
+  syncRow.value.person_name
+    ? `${syncRow.value.person_name}·${syncRow.value.scheme_text}养老金${syncRow.value.direction_text}`
+    : ''
+)
+
+async function loadAccounts() {
+  try {
+    accounts.value = await getAccounts()
+  } catch {
+    accounts.value = []
+  }
+}
+
+async function openSync(row) {
+  syncRow.value = { ...row }
+  syncForm.name = ''
+  syncForm.account_id = null
+  syncVisible.value = true
+  if (!accounts.value.length) loadAccounts()
+  if (row.synced_income_expense_id) {
+    // 已同步过：回显收支管理里那条记录的名称与账户，避免用户没动的字段被意外重置
+    try {
+      const cur = await getIncomeExpense(row.synced_income_expense_id)
+      if (cur) {
+        syncForm.name = cur.name || ''
+        syncForm.account_id = cur.account_id ?? null
+      }
+    } catch {
+      /* 那条收支已被手动删除，保持默认值走重新创建 */
+    }
+  }
+}
+
+async function submitSync() {
+  syncSubmitting.value = true
+  try {
+    const res = await syncPension(syncRow.value.id, {
+      name: syncForm.name || null,
+      account_id: syncForm.account_id ?? null,
+    })
+    ElMessage.success(
+      `${res.action === 'created' ? '已同步' : '已更新'}到收支管理：${res.name} ¥ ${money(res.amount)}`
+    )
+    syncVisible.value = false
+    load()
+  } finally {
+    syncSubmitting.value = false
+  }
 }
 
 // ---------------------------------------------------------------- 查看

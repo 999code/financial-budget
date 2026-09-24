@@ -159,6 +159,11 @@ class Pension(Base):
     overrides = Column(Text, nullable=True, comment="JSON：记录级覆盖值（留空则取人员档案值）")
     breakdown = Column(Text, nullable=True, comment="JSON：计算明细（基础养老金/个人账户/过渡性/职业年金…）")
     note = Column(String(200), nullable=True, comment="备注")
+    synced_income_expense_id = Column(
+        Integer,
+        nullable=True,
+        comment="已同步到的固定收支记录 id（幂等：重复同步走更新而非新建）",
+    )
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True, comment="所属用户（数据隔离）")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
 

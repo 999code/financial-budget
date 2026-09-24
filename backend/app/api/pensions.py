@@ -6,7 +6,7 @@
 """
 import json
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.api.auth import get_current_user, get_owned_or_404
+from app.api.income_expense import ensure_details, sync_detail_amounts
 from app.database import get_db
-from app.models import Pension, PensionParams, PensionPerson, User
+from app.models import Account, IncomeExpense, Pension, PensionParams, PensionPerson, User
 from app.models.pension import (
     DIRECTION_EXPENSE,
     DIRECTION_INCOME,
@@ -160,6 +161,13 @@ def _occurred_on_of(period_month: str, explicit: Optional[date]) -> date:
     if explicit:
         return explicit
     return date(int(period_month[:4]), int(period_month[5:7]), 1)
+
+
+def _sync_name(record: Pension) -> str:
+    """同步到收支管理时的默认名称，如「张三·企业职工养老金领取」。"""
+    scheme_text = SCHEME_TEXT.get(record.scheme, record.scheme or "")
+    direction_text = DIRECTION_TEXT.get(record.direction, record.direction or "")
+    return f"{record.person_name}·{scheme_text}养老金{direction_text}"
 
 
 # ---------------------------------------------------------------- 月度记录
@@ -393,6 +401,86 @@ def delete_pension(
     record = get_owned_or_404(db, Pension, pension_id, current_user.id)
     db.delete(record)
     db.commit()
+
+
+def _sync_payload_of(record: Pension, name: Optional[str]) -> Dict:
+    """构造同步到固定收支所需的字段。"""
+    occurred_on = record.occurred_on or _occurred_on_of(record.period_month, None)
+    return {
+        "name": (name or "").strip() or _sync_name(record),
+        "amount": float(record.amount or 0),
+        "kind": "fixed",
+        "category": record.direction,
+        "period": "monthly",
+        "end_date": None,  # 养老金按月发生，不设终止时间
+        "occurred_at": datetime(occurred_on.year, occurred_on.month, occurred_on.day),
+        "note": f"由养老金记录同步（{record.person_name} · {record.period_month}）",
+    }
+
+
+@router.post("/{pension_id}/sync", response_model=schemas.PensionSyncResult)
+def sync_pension_to_income_expense(
+    pension_id: int,
+    payload: Optional[schemas.PensionSyncRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """把该条养老金记录同步成「收支管理」里的固定收支（每月、不终止）。
+
+    幂等：同一条养老金重复同步时更新上次生成的那条收支，不会重复堆积；
+    若那条收支已被手动删除或不属于当前用户，则重新创建一条。
+    """
+    record = get_owned_or_404(db, Pension, pension_id, current_user.id)
+    body = payload or schemas.PensionSyncRequest()
+    if float(record.amount or 0) <= 0:
+        raise HTTPException(status_code=400, detail="金额为 0，无法同步到收支管理")
+
+    account_id = body.account_id
+    if account_id is not None:
+        account = db.get(Account, account_id)
+        if account is None or account.owner_id != current_user.id:
+            raise HTTPException(status_code=404, detail="账户不存在")
+
+    fields = _sync_payload_of(record, body.name)
+
+    item = None
+    link_broken = False
+    if record.synced_income_expense_id:
+        item = db.get(IncomeExpense, record.synced_income_expense_id)
+        if item is not None and item.owner_id != current_user.id:
+            item = None  # 越权：当作未关联处理，重新创建
+        if item is None:
+            link_broken = True  # 上次同步的那条已被删除
+
+    if item is None:
+        item = IncomeExpense(account_id=account_id, owner_id=current_user.id, **fields)
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        ensure_details(item, db)  # 入库即按月展开期次
+        record.synced_income_expense_id = item.id
+        db.commit()
+        action = "created"
+    else:
+        old_amount = item.amount
+        for key, value in fields.items():
+            setattr(item, key, value)
+        item.account_id = account_id
+        db.commit()
+        db.refresh(item)
+        sync_detail_amounts(db, item, old_amount)  # 已展开期次按新金额同步
+        ensure_details(item, db)
+        action = "updated"
+
+    return schemas.PensionSyncResult(
+        action=action,
+        income_expense_id=item.id,
+        name=item.name,
+        amount=item.amount,
+        category=item.category,
+        period=item.period or "monthly",
+        link_broken=link_broken,
+    )
 
 
 # ---------------------------------------------------------------- 人员档案

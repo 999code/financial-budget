@@ -242,9 +242,28 @@ class PensionRead(BaseModel):
     params: Dict[str, object] = {}
     overrides: Dict[str, object] = {}
     note: Optional[str] = None
+    synced_income_expense_id: Optional[int] = None  # 已同步到的固定收支 id，None=未同步
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------- 同步到收支管理
+class PensionSyncRequest(BaseModel):
+    """把某条养老金记录同步成「固定收支」。"""
+
+    account_id: Optional[int] = None  # 关联账户（选填，留空=未指定）
+    name: Optional[str] = None  # 留空=按「人员·分类养老金方向」自动生成
+
+
+class PensionSyncResult(BaseModel):
+    action: str  # created(新建) / updated(更新)
+    income_expense_id: int
+    name: str
+    amount: float
+    category: str  # income(收入)/expense(支出)
+    period: str  # monthly
+    link_broken: bool = False  # 原关联收支已被删除，本次改为新建
 
 
 # ---------------------------------------------------------------- 试算

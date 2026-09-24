@@ -8,6 +8,8 @@ export const getPension = (id) => request.get(`/pensions/${id}`)
 export const createPension = (data) => request.post('/pensions', data)
 export const updatePension = (id, data) => request.put(`/pensions/${id}`, data)
 export const deletePension = (id) => request.delete(`/pensions/${id}`)
+// 同步到收支管理的固定收支（幂等：重复同步走更新）
+export const syncPension = (id, data) => request.post(`/pensions/${id}/sync`, data || {})
 
 // 人员档案
 export const getPensionPersons = (params) => request.get('/pension-persons', { params })
