@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.api.auth import get_current_user, get_owned_or_404
 from app import schemas
-from app.models import IncomeExpense, IncomeExpenseDetail, User
+from app.models import Account, IncomeExpense, IncomeExpenseDetail, User
 from app.models.income_expense_detail import period_dates, to_date
 
 router = APIRouter(prefix="/income-expense", tags=["收支管理"])
@@ -37,6 +37,28 @@ def _normalize_period(kind: str, period: Optional[str]) -> Optional[str]:
     if period not in VALID_PERIODS:
         raise HTTPException(status_code=400, detail="周期必须为 monthly(每月) 或 yearly(每年)")
     return period
+
+
+def _normalize_account(db: Session, account_id: Optional[int], user_id: int) -> Optional[int]:
+    """校验关联账户属于当前用户；传 None 表示「未指定账户」（允许取消关联）。"""
+    if account_id is None:
+        return None
+    account = db.get(Account, account_id)
+    if account is None or account.owner_id != user_id:
+        raise HTTPException(status_code=404, detail="账户不存在")
+    return account_id
+
+
+def _fill_account_names(db: Session, rows) -> None:
+    """给列表补上账户名称，供前端直接展示（未关联的为 None）。"""
+    account_ids = {row.account_id for row in rows if row.account_id}
+    names = {}
+    if account_ids:
+        names = dict(
+            db.query(Account.id, Account.name).filter(Account.id.in_(account_ids)).all()
+        )
+    for row in rows:
+        row.account_name = names.get(row.account_id)
 
 
 def _get_owned_detail(db: Session, detail_id: int, user_id: int) -> IncomeExpenseDetail:
@@ -106,10 +128,11 @@ def list_items(
     end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     period: Optional[str] = Query(None, description="monthly(每月)/yearly(每年)，仅固定收支"),
     category: Optional[str] = Query(None, description="income(收入)/expense(支出)"),
+    account_id: Optional[int] = Query(None, description="关联账户 id"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """收支列表，支持按 kind、分类、名称、金额范围、时间范围筛选（仅当前用户的数据）。"""
+    """收支列表，支持按 kind、分类、名称、金额范围、时间范围、账户筛选（仅当前用户的数据）。"""
     q = db.query(IncomeExpense).filter(IncomeExpense.owner_id == current_user.id)
     if kind:
         q = q.filter(IncomeExpense.kind == kind)
@@ -117,6 +140,8 @@ def list_items(
         q = q.filter(IncomeExpense.category == category)
     if period:
         q = q.filter(IncomeExpense.period == period)
+    if account_id:
+        q = q.filter(IncomeExpense.account_id == account_id)
     if name:
         q = q.filter(IncomeExpense.name.ilike(f"%{name}%"))
     if amount_min is not None:
@@ -171,6 +196,7 @@ def list_items(
     for row in rows:
         row.total_amount = float(sums.get(row.id, 0.0) or 0.0)
         row.year_total_amount = float(year_sums.get(row.id, 0.0) or 0.0)
+    _fill_account_names(db, rows)
     return rows
 
 
@@ -187,12 +213,14 @@ def create_item(
     data = payload.model_dump()
     data["category"] = _normalize_category(data.get("category"))
     data["period"] = _normalize_period(data.get("kind"), data.get("period"))
+    data["account_id"] = _normalize_account(db, data.get("account_id"), current_user.id)
     data["owner_id"] = current_user.id
     item = IncomeExpense(**data)
     db.add(item)
     db.commit()
     db.refresh(item)
     ensure_details(item, db)  # 固定收支入库即按周期展开明细
+    item.account_name = db.get(Account, item.account_id).name if item.account_id else None
     return item
 
 
@@ -221,7 +249,9 @@ def get_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return get_owned_or_404(db, IncomeExpense, item_id, current_user.id)
+    item = get_owned_or_404(db, IncomeExpense, item_id, current_user.id)
+    item.account_name = db.get(Account, item.account_id).name if item.account_id else None
+    return item
 
 
 @router.put("/{item_id}", response_model=schemas.IncomeExpenseRead)
@@ -240,6 +270,8 @@ def update_item(
             updates.get("kind", item.kind),
             updates.get("period", item.period),
         )
+    if "account_id" in updates:
+        updates["account_id"] = _normalize_account(db, updates.get("account_id"), current_user.id)
     old_amount = item.amount
     for key, value in updates.items():
         if key == "owner_id":
@@ -249,6 +281,7 @@ def update_item(
     db.refresh(item)
     sync_detail_amounts(db, item, old_amount)
     ensure_details(item, db)  # 改了金额/周期/时间后补齐新产生的期次
+    item.account_name = db.get(Account, item.account_id).name if item.account_id else None
     return item
 
 

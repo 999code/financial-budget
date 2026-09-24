@@ -13,6 +13,7 @@ class IncomeExpenseBase(BaseModel):
     end_date: Optional[date] = None  # 终止时间（仅 fixed 生效，留空表示不终止）
     occurred_at: Optional[datetime] = None
     note: Optional[str] = None
+    account_id: Optional[int] = None  # 关联账户（选填）
 
 
 class IncomeExpenseCreate(IncomeExpenseBase):
@@ -28,10 +29,12 @@ class IncomeExpenseUpdate(BaseModel):
     end_date: Optional[date] = None
     occurred_at: Optional[datetime] = None
     note: Optional[str] = None
+    account_id: Optional[int] = None
 
 
 class IncomeExpenseRead(IncomeExpenseBase):
     id: int
+    account_name: Optional[str] = None  # 关联账户名称，列表展示用
     created_at: datetime
 
     model_config = {"from_attributes": True}

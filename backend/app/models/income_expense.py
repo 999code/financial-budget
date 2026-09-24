@@ -2,7 +2,10 @@
 
 与 transactions 的区别：本表用于「收支管理」页面，记录项只关心
 名称 / 金额 / 时间，并按 kind（fixed=固定收支, temp=临时收支）归类，
-不强制关联账户与分类，适合家庭日常的固定开销与一次性的临时收支。
+不强制关联分类，适合家庭日常的固定开销与一次性的临时收支。
+
+account_id 可选：关联到「账户管理」里的某个账户（选填，留空表示未指定），
+账户余额 = 期初余额 + 收入合计 − 支出合计，由该关联关系汇总得出。
 """
 from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.sql import func
@@ -25,6 +28,13 @@ class IncomeExpense(Base):
     )
     period = Column(String(10), nullable=True, comment="monthly(每月)/yearly(每年)，仅 fixed 生效")
     end_date = Column(Date, nullable=True, comment="终止时间（仅 fixed 生效，留空表示不终止）")
+    account_id = Column(
+        Integer,
+        ForeignKey("accounts.id"),
+        nullable=True,
+        index=True,
+        comment="关联账户（选填，留空表示未指定账户）",
+    )
     occurred_at = Column(DateTime(timezone=True), server_default=func.now(), comment="发生时间")
     note = Column(String(200), nullable=True, comment="备注")
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True, comment="所属用户（数据隔离）")

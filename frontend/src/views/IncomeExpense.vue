@@ -61,6 +61,9 @@
             {{ categoryText(viewRow.category) }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="银行账户">
+          {{ viewRow.account_name || '未指定' }}
+        </el-descriptions-item>
         <el-descriptions-item label="金额">
           ¥{{ viewRow.amount != null ? Number(viewRow.amount).toFixed(2) : '-' }}
         </el-descriptions-item>
@@ -136,10 +139,12 @@
 </template>
 
 <script setup>
-import { computed, h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import SearchForm from '@/components/SearchForm.vue'
+import { getAccounts } from '@/api/accounts'
 import {
   createIncomeExpense,
   deleteIncomeExpense,
@@ -152,10 +157,32 @@ import {
 
 defineOptions({ name: 'IncomeExpense' })
 
+const route = useRoute()
+
 const tabs = [
   { name: 'fixed', label: '固定收支' },
   { name: 'temp', label: '临时收支' },
 ]
+
+// 银行账户（来自账户管理），用于筛选与表单选择；加载失败不阻塞页面
+const accounts = ref([])
+const accountOptions = computed(() =>
+  accounts.value.map((a) => ({ label: a.name, value: a.id })),
+)
+async function loadAccounts() {
+  try {
+    accounts.value = await getAccounts()
+  } catch {
+    accounts.value = []
+  }
+}
+
+// 单元格模板是拼出来的字符串，账户名是用户输入，需要做转义再拼接
+function escapeHtml(text) {
+  return String(text ?? '').replace(/[&<>"']/g, (ch) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+  ))
+}
 
 // 收支分类：收入 / 支出（沿用项目内的展示约定：收入绿、支出红）
 const CATEGORY_OPTIONS = [
@@ -184,6 +211,7 @@ function periodText(period) {
 const emptyQuery = () => ({
   name: '',
   category: '',
+  account_id: '',
   amount_min: null,
   amount_max: null,
   date_range: null, // [开始日期, 结束日期]
@@ -241,6 +269,15 @@ function buildSearchSchema(kind) {
         clearable: true,
         style: 'width: 100%',
       },
+      {
+        type: 'select',
+        label: '银行账户',
+        field: 'account_id',
+        options: [{ label: '全部', value: '' }, ...accountOptions.value],
+        placeholder: '全部账户',
+        clearable: true,
+        style: 'width: 100%',
+      },
       amountRangeItem(),
       {
         type: 'date-picker',
@@ -282,6 +319,9 @@ const schemaBind = {
   },
   categoryTagType(category) {
     return categoryTagType(category)
+  },
+  escapeHtml(text) {
+    return escapeHtml(text)
   },
   // 总金额 / 今年总金额：收入显示 +（红），支出显示 -（绿）
   totalAmountText(row) {
@@ -359,6 +399,16 @@ function buildColumns(kind) {
         const type = schemaBind.categoryTagType(scope.row.category)
         const text = scope.row.category === 'income' ? '收入' : '支出'
         return '<el-tag type="' + type + '" size="small">' + text + '</el-tag>'
+      },
+    },
+    {
+      prop: 'account_name',
+      label: '银行账户',
+      width: '130',
+      template(scope) {
+        return scope.row.account_name
+          ? '<span>' + schemaBind.escapeHtml(scope.row.account_name) + '</span>'
+          : '<span style="color:#909399">未指定</span>'
       },
     },
     {
@@ -474,6 +524,7 @@ const form = reactive({
   period: 'monthly',
   occurred_at: '',
   end_date: '',
+  account_id: null,
   note: '',
 })
 
@@ -509,6 +560,15 @@ const dialogSchema = computed(() => ({
       rules: [{ required: true, message: '请输入金额', trigger: 'change' }],
     },
     // 周期仅在「固定收支」下出现，临时收支不展示
+    {
+      type: 'select',
+      label: '银行账户',
+      field: 'account_id',
+      options: accountOptions.value,
+      placeholder: '留空表示未指定',
+      clearable: true,
+      style: 'width: 100%',
+    },
     {
       type: 'select',
       label: '周期',
@@ -556,6 +616,7 @@ function openCreate(kind) {
     period: 'monthly',
     occurred_at: todayStr(),
     end_date: '',
+    account_id: null,
     note: '',
   })
   editVisible.value = true
@@ -571,6 +632,7 @@ function openEdit(row) {
     period: row.period || 'monthly',
     occurred_at: (row.occurred_at || '').slice(0, 10),
     end_date: (row.end_date || '').slice(0, 10),
+    account_id: row.account_id ?? null,
     note: row.note || '',
   })
   editVisible.value = true
@@ -605,6 +667,7 @@ async function submit() {
     period: editingKind.value === 'fixed' ? form.period : null,
     end_date: editingKind.value === 'fixed' && form.end_date ? `${form.end_date} 00:00:00` : null,
     occurred_at: form.occurred_at ? `${form.occurred_at} 00:00:00` : null,
+    account_id: form.account_id ?? null, // 选填：null 表示未指定账户
     note: form.note || null,
   }
   submitting.value = true
@@ -625,7 +688,7 @@ async function submit() {
 
 // ---- 查看 弹窗 ----
 const viewVisible = ref(false)
-const viewRow = reactive({ id: null, name: '', amount: null, kind: '', occurred_at: '', note: '' })
+const viewRow = reactive({ id: null, name: '', amount: null, kind: '', occurred_at: '', note: '', account_name: '' })
 
 // 固定收支的按期明细：后端按周期从创建时间自动展开，编辑/删除直接入库
 const details = ref([])
@@ -707,6 +770,7 @@ async function load(kind) {
     const params = { kind }
     if (q.name) params.name = q.name
     if (q.category) params.category = q.category
+    if (q.account_id !== '' && q.account_id != null) params.account_id = q.account_id
     if (q.amount_min != null && q.amount_min !== '') params.amount_min = q.amount_min
     if (q.amount_max != null && q.amount_max !== '') params.amount_max = q.amount_max
     const [startDate, endDate] = Array.isArray(q.date_range) ? q.date_range : []
@@ -728,10 +792,31 @@ function formatTime(ts) {
   return String(ts).replace('T', ' ').slice(0, 16)
 }
 
+// 从账户管理页「查看」跳转过来时带上 ?account=<id>，两个 tab 都按该账户筛选
+function applyAccountFromRoute(value) {
+  if (value === undefined || value === null || value === '') return
+  const id = Number(value)
+  if (!id) return
+  state.fixed.query.account_id = id
+  state.temp.query.account_id = id
+}
+
 onMounted(() => {
+  loadAccounts()
+  applyAccountFromRoute(route.query.account)
   load('fixed')
   load('temp')
 })
+
+// 已在收支页时再次从账户页跳转（路由参数变化），同样应用筛选
+watch(
+  () => route.query.account,
+  (value) => {
+    applyAccountFromRoute(value)
+    load('fixed')
+    load('temp')
+  },
+)
 </script>
 
 <style scoped>

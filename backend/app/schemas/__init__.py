@@ -10,7 +10,14 @@ from app.schemas.user import (
     ProfileUpdate,
     ChangePasswordPayload,
 )
-from app.schemas.account import AccountBase, AccountCreate, AccountUpdate, AccountRead
+from app.schemas.account import (
+    AccountBase,
+    AccountCreate,
+    AccountUpdate,
+    AccountRead,
+    AccountIncomeExpenseItem,
+    AccountIncomeExpenseSummary,
+)
 from app.schemas.category import CategoryBase, CategoryCreate, CategoryUpdate, CategoryRead
 from app.schemas.transaction import TransactionBase, TransactionCreate, TransactionUpdate, TransactionRead
 from app.schemas.budget import BudgetBase, BudgetCreate, BudgetUpdate, BudgetRead
@@ -31,6 +38,7 @@ __all__ = [
     "UserBase", "UserCreate", "UserRead", "UserUpdate",
     "RegisterPayload", "LoginPayload", "TokenRead", "ProfileUpdate", "ChangePasswordPayload",
     "AccountBase", "AccountCreate", "AccountUpdate", "AccountRead",
+    "AccountIncomeExpenseItem", "AccountIncomeExpenseSummary",
     "CategoryBase", "CategoryCreate", "CategoryUpdate", "CategoryRead",
     "TransactionBase", "TransactionCreate", "TransactionUpdate", "TransactionRead",
     "BudgetBase", "BudgetCreate", "BudgetUpdate", "BudgetRead",
