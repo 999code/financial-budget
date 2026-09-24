@@ -344,7 +344,11 @@ const summaryFixed = makeSummaryMethod(['total_amount', 'year_total_amount'])
 const summaryTemp = makeSummaryMethod(['amount'])
 
 // ---- 表格 schema（sc-table） ----
-function buildTableSchema(kind) {
+// 列定义与列表数据无关，必须在 computed 之外只构建一次：
+// 若每次 data 变化都重建 columns（连 template 函数都是新引用），el-table 会重新注册列
+// 并重新计算列宽，布局中间态会让单元格内容换行、行高从 40.5 撑到 64，
+// 表现为「刷新后表格抖动」。列定义保持稳定后，刷新只更新行数据，不再重排。
+function buildColumns(kind) {
   const columns = [
     { prop: 'name', label: '名称', minWidth: '160', align: 'left' },
     {
@@ -434,11 +438,18 @@ function buildTableSchema(kind) {
     },
   )
 
+  return columns;
+}
+
+const columnsFixed = buildColumns('fixed')
+const columnsTemp = buildColumns('temp')
+
+function buildTableSchema(kind) {
   return {
     bind: schemaBind,
     data: state[kind].list,
     height: 'auto',
-    columns,
+    columns: kind === 'fixed' ? columnsFixed : columnsTemp,
     // 合计行：固定收支汇总总金额与今年总金额，临时收支汇总金额（均为净额）
     showSummary: true,
     summaryMethod: kind === 'fixed' ? summaryFixed : summaryTemp,

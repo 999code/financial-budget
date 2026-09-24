@@ -57,6 +57,22 @@ const table = ref(null);
 const selection = ref([]);
 const tableInstance = computed(() => table.value);
 
+/**
+ * 归一化表格高度。
+ *
+ * el-table 只要 height 有值（哪怕是非数字的字符串）就会进入「固定高度」布局：
+ * 内部用 ResizeObserver + doLayout() 把 body 高度写成「scrollHeight − 表头 − 合计行」的
+ * 计算值。当父容器是自适应高度时，这个计算会在刷新时算错（曾实测 body 被撑高 164.5px，
+ * 表现为刷新后表格抖一下）。因此 'auto' / 空值一律按「不设置 height」处理，
+ * 让表格按内容自然撑开。
+ */
+function normalizeHeight(height) {
+    if (height === 'auto' || height === '' || height === undefined || height === null) {
+        return undefined;
+    }
+    return height;
+}
+
 function useProp(prop, type) {
     const componentProps = { ...prop };
     // 设置具体各项值/默认值
@@ -69,6 +85,7 @@ function useProp(prop, type) {
             return {
                 ...setting.value.table,
                 ...componentProps,
+                height: normalizeHeight(componentProps.height ?? setting.value.table?.height),
             };
         case 'column':
             delete componentProps.template;

@@ -31,20 +31,64 @@ function toHandlerKey(eventName) {
  * 之后列表刷新（行对象换成新对象）时组件实例被复用，内部拿到的仍是旧对象，
  * 表现为「改完金额保存后再点编辑，弹窗里还是旧值」。改用 computed 后每次
  * 都读取最新的 props.data，行数据变化即可同步。
+ *
+ * 这里用普通函数而非箭头函数：Vue 在初始化 options computed 时会把 getter
+ * bind 到组件实例，普通函数里的 this 才是当前实例（箭头函数会锁死模块作用域）。
  */
-function toComputed(getSource) {
-    const source = getSource() || {};
+function toComputed(keys) {
     const result = {};
 
-    Object.keys(source).forEach((key) => {
-        result[key] = () => (getSource() || {})[key];
+    keys.forEach((key) => {
+        result[key] = function () {
+            const source = this.tplData || {};
+            return source[key];
+        };
     });
+
     return result;
 }
 
 // 仅在 data 的键集合发生变化时才需要重建组件（值变化走 computed 即可）
 function toKey(source) {
     return Object.keys(source || {}).sort().join('|');
+}
+
+/**
+ * 组件定义缓存：同一份模板 + 同一套 data 键集合只创建一次组件。
+ *
+ * 之前每次渲染都 defineComponent 出一个新组件对象，Vue patch 时发现 vnode.type
+ * 不同（哪怕 key 相同）就会 unmount + mount，单元格内容被整体销毁重建，
+ * 内部 el-tag / el-button 等带过渡的组件会同时出现 leave 与 enter 两份节点，
+ * 300ms 内把单元格撑成两行（实测 cell 23 → 47、行高 40.5 → 64），
+ * 表格高度随之跳变，表现就是「刷新后表格抖动」。
+ * 缓存后模板不变的行只更新数据，不再重建，也就不会闪过渡动画。
+ */
+const componentCache = new Map();
+
+function getCachedComponent(template, source, extraOptions) {
+    const keys = Object.keys(source || {}).sort();
+    const cacheKey = `${keys.join('|')}||${template}`;
+
+    if (componentCache.size > 500) componentCache.clear();
+
+    if (!componentCache.has(cacheKey)) {
+        componentCache.set(
+            cacheKey,
+            defineComponent({
+                ...(extraOptions || {}),
+                props: {
+                    tplData: {
+                        type: Object,
+                        default: () => ({}),
+                    },
+                },
+                template,
+                computed: toComputed(keys),
+            }),
+        );
+    }
+
+    return componentCache.get(cacheKey);
 }
 
 function normalizeVNodeProps(options) {
@@ -72,11 +116,11 @@ function normalizeVNodeProps(options) {
 function RenderContent() {
     if (typeof props.content === 'string') {
         return h(
-            defineComponent({
-                template: props.content,
-                computed: toComputed(() => props.data),
-            }),
-            { key: toKey(props.data) },
+            getCachedComponent(props.content, props.data),
+            {
+                tplData: props.data,
+                key: toKey(props.data),
+            },
         );
     }
 
@@ -97,12 +141,11 @@ function RenderContent() {
     }
 
     return h(
-        defineComponent({
-            ...options,
-            template,
-            computed: toComputed(() => props.content?.data),
-        }),
-        { key: toKey(props.content?.data) },
+        getCachedComponent(template, data, options),
+        {
+            tplData: data,
+            key: toKey(data),
+        },
     );
 }
 </script>
