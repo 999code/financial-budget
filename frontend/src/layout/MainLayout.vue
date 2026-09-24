@@ -31,6 +31,10 @@
           <el-icon><CreditCard /></el-icon>
           <span>贷款管理</span>
         </el-menu-item>
+        <el-menu-item index="/pensions">
+          <el-icon><Coin /></el-icon>
+          <span>养老金管理</span>
+        </el-menu-item>
         <!-- 设置分组：只作为父级展开用，其 index 不对应具体路由 -->
         <el-sub-menu index="/settings">
           <template #title>

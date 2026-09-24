@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import Base, engine, ensure_columns, get_db
 import app.models  # noqa: F401  确保模型已注册到 Base.metadata
-from app.api import accounts, budgets, categories, transactions, users, income_expense, loans, auth
+from app.api import accounts, budgets, categories, transactions, users, income_expense, loans, auth, pensions
 from app.api.auth import get_current_user
 from app.models import Account, Transaction, User
 
@@ -77,4 +77,7 @@ app.include_router(transactions.router, prefix=settings.API_V1_PREFIX)
 app.include_router(budgets.router, prefix=settings.API_V1_PREFIX)
 app.include_router(income_expense.router, prefix=settings.API_V1_PREFIX)
 app.include_router(loans.router, prefix=settings.API_V1_PREFIX)
+app.include_router(pensions.router, prefix=settings.API_V1_PREFIX)
+app.include_router(pensions.persons_router, prefix=settings.API_V1_PREFIX)
+app.include_router(pensions.params_router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)

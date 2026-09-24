@@ -7,6 +7,7 @@ from app.models.budget import Budget
 from app.models.income_expense import IncomeExpense
 from app.models.income_expense_detail import IncomeExpenseDetail
 from app.models.loan import Loan
+from app.models.pension import Pension, PensionParams, PensionPerson
 
 __all__ = [
     "User",
@@ -17,4 +18,7 @@ __all__ = [
     "IncomeExpense",
     "IncomeExpenseDetail",
     "Loan",
+    "Pension",
+    "PensionParams",
+    "PensionPerson",
 ]

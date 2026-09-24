@@ -33,6 +33,23 @@ from app.schemas.income_expense import (
 )
 
 from app.schemas.loan import LoanBase, LoanCreate, LoanUpdate, LoanRead
+from app.schemas.pension import (
+    PensionPersonBase,
+    PensionPersonCreate,
+    PensionPersonUpdate,
+    PensionPersonRead,
+    PensionParamsBase,
+    PensionParamsUpdate,
+    PensionParamsRead,
+    PensionCreate,
+    PensionUpdate,
+    PensionRead,
+    PensionPreviewRequest,
+    PensionPreviewResult,
+    PensionMonthStat,
+    PensionSchemeStat,
+    PensionStats,
+)
 
 __all__ = [
     "UserBase", "UserCreate", "UserRead", "UserUpdate",
@@ -46,4 +63,9 @@ __all__ = [
     "IncomeExpenseWithTotalRead",
     "IncomeExpenseDetailBase", "IncomeExpenseDetailRead", "IncomeExpenseDetailUpdate",
     "LoanBase", "LoanCreate", "LoanUpdate", "LoanRead",
+    "PensionPersonBase", "PensionPersonCreate", "PensionPersonUpdate", "PensionPersonRead",
+    "PensionParamsBase", "PensionParamsUpdate", "PensionParamsRead",
+    "PensionCreate", "PensionUpdate", "PensionRead",
+    "PensionPreviewRequest", "PensionPreviewResult",
+    "PensionMonthStat", "PensionSchemeStat", "PensionStats",
 ]
