@@ -1,144 +1,149 @@
 <template>
   <div class="pensions">
     <!-- 搜索：人员 / 时间 / 人员分类 -->
-    <search-form :schema="searchSchema" @search="load" @reset="onReset" />
+     <el-card>
+       <search-form :schema="searchSchema" @search="load" @reset="onReset" />
+     </el-card>
 
     <!-- 汇总卡片 -->
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-card__label">领取合计</div>
-        <div class="stat-card__value income">¥ {{ money(stats.income_total) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card__label">缴费合计</div>
-        <div class="stat-card__value expense">¥ {{ money(stats.expense_total) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card__label">净额</div>
-        <div class="stat-card__value" :class="stats.net >= 0 ? 'income' : 'expense'">
-          ¥ {{ money(stats.net) }}
+     <el-card style="margin: 16px 0;">
+       <div class="stats">
+         <div class="stat-card">
+           <div class="stat-card__label">领取合计</div>
+           <div class="stat-card__value income">¥ {{ money(stats.income_total) }}</div>
+         </div>
+         <div class="stat-card">
+           <div class="stat-card__label">缴费合计</div>
+           <div class="stat-card__value expense">¥ {{ money(stats.expense_total) }}</div>
+         </div>
+         <div class="stat-card">
+           <div class="stat-card__label">净额</div>
+           <div class="stat-card__value" :class="stats.net >= 0 ? 'income' : 'expense'">
+             ¥ {{ money(stats.net) }}
+           </div>
+         </div>
+         <div class="stat-card">
+           <div class="stat-card__label">记录数</div>
+           <div class="stat-card__value">{{ stats.count }}</div>
+         </div>
+       </div>
+     </el-card>
+    <el-card>
+      <div class="toolbar">
+        <div class="toolbar__left">
+          <el-button type="primary" :icon="Plus" @click="openCreate">新增记录</el-button>
+          <el-button :icon="User" @click="openPersons">人员档案</el-button>
+          <el-button :icon="Setting" @click="openParams">参数设置</el-button>
         </div>
+        <el-tooltip content="刷新列表" placement="top">
+          <el-button :icon="Refresh" :loading="loading" @click="load" />
+        </el-tooltip>
       </div>
-      <div class="stat-card">
-        <div class="stat-card__label">记录数</div>
-        <div class="stat-card__value">{{ stats.count }}</div>
-      </div>
-    </div>
-
-    <div class="toolbar">
-      <div class="toolbar__left">
-        <el-button type="primary" :icon="Plus" @click="openCreate">新增记录</el-button>
-        <el-button :icon="User" @click="openPersons">人员档案</el-button>
-        <el-button :icon="Setting" @click="openParams">参数设置</el-button>
-      </div>
-      <el-tooltip content="刷新列表" placement="top">
-        <el-button :icon="Refresh" :loading="loading" @click="load" />
-      </el-tooltip>
-    </div>
-
-    <el-table :data="list" v-loading="loading" border stripe>
-      <el-table-column prop="person_name" label="人员" min-width="110" show-overflow-tooltip />
-      <el-table-column label="时间" width="120">
-        <template #default="{ row }">{{ row.occurred_on || row.period_month }}</template>
-      </el-table-column>
-      <el-table-column label="分类" width="140">
-        <template #default="{ row }">
-          <el-tag :type="schemeTagType(row.scheme)" size="small">{{ row.scheme_text }}</el-tag>
+  
+      <el-table :data="list" v-loading="loading" border stripe>
+        <el-table-column prop="person_name" label="人员" min-width="110" show-overflow-tooltip />
+        <el-table-column label="时间" width="120">
+          <template #default="{ row }">{{ row.occurred_on || row.period_month }}</template>
+        </el-table-column>
+        <el-table-column label="分类" width="140">
+          <template #default="{ row }">
+            <el-tag :type="schemeTagType(row.scheme)" size="small">{{ row.scheme_text }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="方向" width="90">
+          <template #default="{ row }">
+            <el-tag
+              :type="row.direction === 'income' ? 'danger' : 'success'"
+              size="small"
+              effect="plain"
+            >
+              {{ row.direction_text }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="收支金额" width="140" align="right">
+          <template #default="{ row }">
+            <span :class="row.direction === 'income' ? 'income' : 'expense'">
+              {{ row.direction === 'income' ? '+' : '-' }} ¥ {{ money(row.amount) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.note || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openView(row)">查看</el-button>
+            <el-button link type="primary" @click="openEdit(row)">修改</el-button>
+            <el-button link type="danger" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <span class="empty-text">暂无记录，请先维护人员档案后再点击「新增记录」</span>
         </template>
-      </el-table-column>
-      <el-table-column label="方向" width="90">
-        <template #default="{ row }">
-          <el-tag
-            :type="row.direction === 'income' ? 'danger' : 'success'"
-            size="small"
-            effect="plain"
-          >
-            {{ row.direction_text }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="收支金额" width="140" align="right">
-        <template #default="{ row }">
-          <span :class="row.direction === 'income' ? 'income' : 'expense'">
-            {{ row.direction === 'income' ? '+' : '-' }} ¥ {{ money(row.amount) }}
-          </span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.note || '-' }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
-        <template #default="{ row }">
-          <el-button link type="primary" @click="openView(row)">查看</el-button>
-          <el-button link type="primary" @click="openEdit(row)">修改</el-button>
-          <el-button link type="danger" @click="remove(row)">删除</el-button>
-        </template>
-      </el-table-column>
-      <template #empty>
-        <span class="empty-text">暂无记录，请先维护人员档案后再点击「新增记录」</span>
-      </template>
-    </el-table>
-
-    <el-collapse class="collapse-block">
-      <el-collapse-item title="按月统计" name="month">
-        <el-table :data="stats.month_stats" size="small" border>
-          <el-table-column prop="month" label="月份" width="120" />
-          <el-table-column label="领取" align="right">
-            <template #default="{ row }">
-              <span class="income">¥ {{ money(row.income) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="缴费" align="right">
-            <template #default="{ row }">
-              <span class="expense">¥ {{ money(row.expense) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="净额" align="right">
-            <template #default="{ row }">
-              <span :class="row.net >= 0 ? 'income' : 'expense'">¥ {{ money(row.net) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="count" label="条数" width="90" align="right" />
-        </el-table>
-        <el-table :data="stats.scheme_stats" size="small" border class="scheme-table">
-          <el-table-column label="人员分类" width="140">
-            <template #default="{ row }">
-              <el-tag :type="schemeTagType(row.scheme)" size="small">{{ row.scheme_text }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="领取" align="right">
-            <template #default="{ row }">
-              <span class="income">¥ {{ money(row.income) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="缴费" align="right">
-            <template #default="{ row }">
-              <span class="expense">¥ {{ money(row.expense) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="净额" align="right">
-            <template #default="{ row }">
-              <span :class="row.net >= 0 ? 'income' : 'expense'">¥ {{ money(row.net) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="count" label="条数" width="90" align="right" />
-        </el-table>
-      </el-collapse-item>
-      <el-collapse-item title="三类养老制度口径说明" name="rules">
-        <div class="rules">
-          <p>
-            <b>企业职工 / 公务员事业单位：</b>月基本养老金 ＝ 基础养老金（（计发基数＋指数化月平均缴费工资）÷2×缴费年限×1%）
-            ＋ 个人账户养老金（储存额 ÷ 计发月数，60 岁为 139）＋ 过渡性养老金（计发基数 × 视同缴费指数 × 视同缴费年限 × 过渡系数）；
-            机关事业另加<b>职业年金</b>。缴费按个人 8%，机关事业再加职业年金个人 4%。
-          </p>
-          <p>
-            <b>城乡居民：</b>月待遇 ＝ 基础养老金（财政定额，2026 年全国最低 163 元/月）＋ 个人账户养老金（（个人缴费＋政府补贴＋利息）÷ 139）
-            ＋ 长缴加发 ＋ 高龄加发；缴费按年选档，政府按档补贴。
-          </p>
-          <p class="rules__tip">※ 金额由上述规则结合「参数设置」中的计发基数等参数自动算出，不可手工填写；实际发放以当地社保经办核定为准。</p>
-        </div>
-      </el-collapse-item>
-    </el-collapse>
+      </el-table>
+  
+      <el-collapse class="collapse-block">
+        <el-collapse-item title="按月统计" name="month">
+          <el-table :data="stats.month_stats" size="small" border>
+            <el-table-column prop="month" label="月份" width="120" />
+            <el-table-column label="领取" align="right">
+              <template #default="{ row }">
+                <span class="income">¥ {{ money(row.income) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="缴费" align="right">
+              <template #default="{ row }">
+                <span class="expense">¥ {{ money(row.expense) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="净额" align="right">
+              <template #default="{ row }">
+                <span :class="row.net >= 0 ? 'income' : 'expense'">¥ {{ money(row.net) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="count" label="条数" width="90" align="right" />
+          </el-table>
+          <el-table :data="stats.scheme_stats" size="small" border class="scheme-table">
+            <el-table-column label="人员分类" width="140">
+              <template #default="{ row }">
+                <el-tag :type="schemeTagType(row.scheme)" size="small">{{ row.scheme_text }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="领取" align="right">
+              <template #default="{ row }">
+                <span class="income">¥ {{ money(row.income) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="缴费" align="right">
+              <template #default="{ row }">
+                <span class="expense">¥ {{ money(row.expense) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="净额" align="right">
+              <template #default="{ row }">
+                <span :class="row.net >= 0 ? 'income' : 'expense'">¥ {{ money(row.net) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="count" label="条数" width="90" align="right" />
+          </el-table>
+        </el-collapse-item>
+        <el-collapse-item title="三类养老制度口径说明" name="rules">
+          <div class="rules">
+            <p>
+              <b>企业职工 / 公务员事业单位：</b>月基本养老金 ＝ 基础养老金（（计发基数＋指数化月平均缴费工资）÷2×缴费年限×1%）
+              ＋ 个人账户养老金（储存额 ÷ 计发月数，60 岁为 139）＋ 过渡性养老金（计发基数 × 视同缴费指数 × 视同缴费年限 × 过渡系数）；
+              机关事业另加<b>职业年金</b>。缴费按个人 8%，机关事业再加职业年金个人 4%。
+            </p>
+            <p>
+              <b>城乡居民：</b>月待遇 ＝ 基础养老金（财政定额，2026 年全国最低 163 元/月）＋ 个人账户养老金（（个人缴费＋政府补贴＋利息）÷ 139）
+              ＋ 长缴加发 ＋ 高龄加发；缴费按年选档，政府按档补贴。
+            </p>
+            <p class="rules__tip">※ 金额由上述规则结合「参数设置」中的计发基数等参数自动算出，不可手工填写；实际发放以当地社保经办核定为准。</p>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+    </el-card>
 
     <!-- 新增 / 编辑 -->
     <el-dialog v-model="visible" :title="editingId ? '编辑养老金记录' : '新增养老金记录'" width="620px">
@@ -1001,7 +1006,6 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
 .stat-card {
