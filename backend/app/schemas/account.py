@@ -1,15 +1,35 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+CARD_NUMBER_MAX_LENGTH = 50
+
+
+def normalize_card_number(value):
+    """卡号去空白后必须非空（必填）；None 表示「本次不修改」。"""
+    if value is None:
+        return None
+    value = str(value).strip()
+    if not value:
+        raise ValueError("卡号不能为空")
+    if len(value) > CARD_NUMBER_MAX_LENGTH:
+        raise ValueError(f"卡号长度不能超过 {CARD_NUMBER_MAX_LENGTH} 个字符")
+    return value
 
 
 class AccountBase(BaseModel):
     name: str
+    card_number: str  # 卡号：必填，同一用户下不重复
     type: str = "cash"
     initial_balance: float = 0.0  # 期初余额：唯一需要录入的金额
     currency: str = "CNY"
     owner_id: Optional[int] = None
+
+    @field_validator("card_number")
+    @classmethod
+    def _normalize_card(cls, v):
+        return normalize_card_number(v)
 
 
 class AccountCreate(AccountBase):
@@ -18,10 +38,16 @@ class AccountCreate(AccountBase):
 
 class AccountUpdate(BaseModel):
     name: Optional[str] = None
+    card_number: Optional[str] = None
     type: Optional[str] = None
     initial_balance: Optional[float] = None  # 余额由收支汇总算出，不接受直接改 balance
     currency: Optional[str] = None
     owner_id: Optional[int] = None
+
+    @field_validator("card_number")
+    @classmethod
+    def _normalize_card(cls, v):
+        return normalize_card_number(v)
 
 
 class AccountRead(AccountBase):

@@ -14,6 +14,7 @@ class Account(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), nullable=False, comment="账户名称")
+    card_number = Column(String(50), nullable=False, default="", comment="卡号（必填，同一用户下不重复）")
     type = Column(String(20), default="cash", comment="cash/bank/creditcard/investment")
     initial_balance = Column(Float, default=0.0, comment="期初余额（建账时的本金）")
     balance = Column(Float, default=0.0, comment="当前余额（期初 + 收入 − 支出，读取时计算回填）")

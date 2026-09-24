@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,6 +13,27 @@ router = APIRouter(prefix="/accounts", tags=["账户"])
 def _as_float(value) -> float:
     """新增列前历史行的 initial_balance 可能为 NULL，统一按 0 处理。"""
     return float(value or 0.0)
+
+
+def _as_text(value) -> str:
+    """加列前的历史行 card_number 可能为 NULL，读取时统一按空串处理。"""
+    return value or ""
+
+
+def _ensure_card_number_unique(
+    db: Session, user_id: int, card_number: str, exclude_id: int | None = None
+) -> None:
+    """卡号必填，且同一用户下不允许重复（不同用户之间互不影响）。"""
+    if not card_number:
+        return
+    q = db.query(Account).filter(
+        Account.owner_id == user_id,
+        Account.card_number == card_number,
+    )
+    if exclude_id is not None:
+        q = q.filter(Account.id != exclude_id)
+    if q.first():
+        raise HTTPException(status_code=400, detail=f"卡号「{card_number}」已存在")
 
 
 def build_account_items(db: Session, account_id: int, user_id: int) -> list[schemas.AccountIncomeExpenseItem]:
@@ -91,6 +112,7 @@ def fill_balances(db: Session, accounts, user_id: int) -> None:
     """就地计算账户余额（列表接口用）。"""
     for account in accounts:
         account.initial_balance = _as_float(account.initial_balance)
+        account.card_number = _as_text(account.card_number)
         balance, _income, _expense = compute_balance(db, account, user_id)
         account.balance = balance
 
@@ -121,6 +143,7 @@ def create_account(
     data["owner_id"] = current_user.id  # 强制归属当前用户，忽略客户端传值
     data["initial_balance"] = _as_float(data.get("initial_balance"))
     data["balance"] = data["initial_balance"]  # 新建时尚无收支，余额就等于期初余额
+    _ensure_card_number_unique(db, current_user.id, data.get("card_number"))
     account = Account(**data)
     db.add(account)
     db.commit()
@@ -136,6 +159,7 @@ def get_account(
     current_user: User = Depends(get_current_user),
 ):
     account = get_owned_or_404(db, Account, account_id, current_user.id)
+    account.card_number = _as_text(account.card_number)
     account.balance = compute_balance(db, account, current_user.id)[0]
     return account
 
@@ -178,8 +202,13 @@ def update_account(
     current_user: User = Depends(get_current_user),
 ):
     account = get_owned_or_404(db, Account, account_id, current_user.id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "card_number" in updates and updates["card_number"] is not None:
+        _ensure_card_number_unique(db, current_user.id, updates["card_number"], account.id)
+    for key, value in updates.items():
         if key == "owner_id":  # 不允许通过编辑把数据转移给别人
+            continue
+        if key == "card_number" and value is None:  # 传 null 视为不改，卡号必填不能被清空
             continue
         if key == "initial_balance":
             value = _as_float(value)

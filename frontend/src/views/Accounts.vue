@@ -67,6 +67,11 @@
       </el-table-column>
       <el-table-column prop="id" label="ID" width="70" />
       <el-table-column prop="name" label="账户名称" />
+      <el-table-column label="卡号" min-width="180">
+        <template #default="{ row }">
+          <span class="card-number">{{ row.card_number || '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="类型" width="120">
         <template #default="{ row }">{{ typeLabel[row.type] || row.type }}</template>
       </el-table-column>
@@ -94,6 +99,15 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="如：招商银行卡" />
+        </el-form-item>
+        <el-form-item label="卡号" prop="card_number">
+          <el-input
+            v-model="form.card_number"
+            placeholder="如：6225 8801 2345 6789"
+            maxlength="50"
+            show-word-limit
+            clearable
+          />
         </el-form-item>
         <el-form-item label="类型" prop="type">
           <el-select v-model="form.type" style="width: 100%">
@@ -150,10 +164,18 @@ const flow = ref({})
 const flowLoading = reactive({})
 const expandedIds = new Set() // 记录哪些行处于展开态，刷新后重新取这几行
 
-const emptyForm = { name: '', type: 'cash', initial_balance: 0, currency: 'CNY' }
+const emptyForm = { name: '', card_number: '', type: 'cash', initial_balance: 0, currency: 'CNY' }
 const form = reactive({ ...emptyForm })
 const rules = {
   name: [{ required: true, message: '请输入账户名称', trigger: 'blur' }],
+  card_number: [
+    { required: true, message: '请输入卡号', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) =>
+        value && value.trim() ? callback() : callback(new Error('卡号不能为空')),
+      trigger: 'blur',
+    },
+  ],
 }
 
 function money(value) {
@@ -216,6 +238,7 @@ function openEdit(row) {
   editingId.value = row.id
   Object.assign(form, {
     name: row.name,
+    card_number: row.card_number || '',
     type: row.type,
     initial_balance: row.initial_balance ?? 0,
     currency: row.currency,
@@ -225,11 +248,12 @@ function openEdit(row) {
 
 async function submit() {
   await formRef.value.validate()
+  const payload = { ...form, card_number: form.card_number.trim() }
   if (editingId.value) {
-    await updateAccount(editingId.value, { ...form })
+    await updateAccount(editingId.value, payload)
     ElMessage.success('已更新')
   } else {
-    await createAccount({ ...form })
+    await createAccount(payload)
     ElMessage.success('已创建')
   }
   visible.value = false
@@ -286,6 +310,10 @@ onMounted(load)
 }
 .balance {
   font-weight: 600;
+}
+.card-number {
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+  letter-spacing: 0.5px;
 }
 .hint {
   margin-top: 6px;

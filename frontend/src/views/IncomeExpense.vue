@@ -166,8 +166,13 @@ const tabs = [
 
 // 银行账户（来自账户管理），用于筛选与表单选择；加载失败不阻塞页面
 const accounts = ref([])
+// 同名账户靠卡号尾号区分（账户卡号为必填，理论上都有值）
+function accountLabel(account) {
+  const tail = String(account.card_number || '').replace(/\s+/g, '').slice(-4)
+  return tail ? `${account.name}（尾号 ${tail}）` : account.name
+}
 const accountOptions = computed(() =>
-  accounts.value.map((a) => ({ label: a.name, value: a.id })),
+  accounts.value.map((a) => ({ label: accountLabel(a), value: a.id })),
 )
 async function loadAccounts() {
   try {

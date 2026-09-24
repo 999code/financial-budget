@@ -6,7 +6,9 @@
         <span>家庭财务</span>
       </div>
       <el-menu
+        ref="menuRef"
         :default-active="activeMenu"
+        :default-openeds="defaultOpeneds"
         router
         background-color="#1f2d3d"
         text-color="#c0c4cc"
@@ -29,14 +31,21 @@
           <el-icon><CreditCard /></el-icon>
           <span>贷款管理</span>
         </el-menu-item>
-        <el-menu-item index="/profile">
-          <el-icon><User /></el-icon>
-          <span>个人信息</span>
-        </el-menu-item>
-        <el-menu-item v-if="auth.isAdmin" index="/users">
-          <el-icon><UserFilled /></el-icon>
-          <span>用户管理</span>
-        </el-menu-item>
+        <!-- 设置分组：只作为父级展开用，其 index 不对应具体路由 -->
+        <el-sub-menu index="/settings">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>设置</span>
+          </template>
+          <el-menu-item index="/profile">
+            <el-icon><User /></el-icon>
+            <span>个人信息</span>
+          </el-menu-item>
+          <el-menu-item v-if="auth.isAdmin" index="/users">
+            <el-icon><UserFilled /></el-icon>
+            <span>用户管理</span>
+          </el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/example">
           <el-icon><Document /></el-icon>
           <span>示例</span>
@@ -70,16 +79,37 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/store/auth'
 
+// 「设置」是纯分组菜单，不对应具体路由；其下的页面路径
+const SETTINGS_INDEX = '/settings'
+const SETTINGS_PATHS = ['/profile', '/users']
+
+const menuRef = ref()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const activeMenu = computed(() => route.path)
 const currentTitle = computed(() => route.meta.title || '家庭财务管理系统')
+// el-menu 的 default-openeds 只在初始化时读取一次，用它保证「刷新后停在子页面」时父级是展开的
+const defaultOpeneds = computed(() =>
+  SETTINGS_PATHS.includes(route.path) ? [SETTINGS_INDEX] : []
+)
+// 运行时切换（含从右上角下拉跳进来）：直接调 el-menu 的 open/close，父级不会自动展开
+watch(
+  () => route.path,
+  (path) => {
+    nextTick(() => {
+      if (!menuRef.value) return
+      if (SETTINGS_PATHS.includes(path)) menuRef.value.open(SETTINGS_INDEX)
+      else menuRef.value.close(SETTINGS_INDEX)
+    })
+  },
+  { immediate: true }
+)
 
 // 刷新后 user 信息会丢失，这里按令牌补一次
 onMounted(() => {
