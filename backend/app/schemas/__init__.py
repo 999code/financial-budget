@@ -32,7 +32,7 @@ from app.schemas.income_expense import (
     IncomeExpenseDetailUpdate,
 )
 
-from app.schemas.summary import FundRunwayRead
+from app.schemas.summary import FundRunwayRead, AbsoluteOutlookRead, AbsoluteOutlookMonth
 from app.schemas.loan import LoanBase, LoanCreate, LoanUpdate, LoanRead
 from app.schemas.pension import (
     PensionPersonBase,
@@ -66,7 +66,7 @@ __all__ = [
     "IncomeExpenseBase", "IncomeExpenseCreate", "IncomeExpenseUpdate", "IncomeExpenseRead",
     "IncomeExpenseWithTotalRead",
     "IncomeExpenseDetailBase", "IncomeExpenseDetailRead", "IncomeExpenseDetailUpdate",
-    "FundRunwayRead",
+    "FundRunwayRead", "AbsoluteOutlookRead", "AbsoluteOutlookMonth",
     "LoanBase", "LoanCreate", "LoanUpdate", "LoanRead",
     "PensionPersonBase", "PensionPersonCreate", "PensionPersonUpdate", "PensionPersonRead",
     "PensionParamsBase", "PensionParamsUpdate", "PensionParamsRead",

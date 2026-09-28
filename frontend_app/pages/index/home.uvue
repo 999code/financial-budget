@@ -61,10 +61,34 @@
 			>
 				<view class="flex flex-row items-center justify-between">
 					<cl-text :size="15" :pt="{ className: 'font-bold' }">
-						资金消耗与耗尽预测
+						资金消耗与耗尽预测（按照均值）
 					</cl-text>
 
 					<cl-tag :type="statusType">{{ statusText }}</cl-tag>
+				</view>
+
+				<!-- 统计窗口切换 -->
+				<view class="flex flex-row items-center justify-between mt-4">
+					<view class="flex flex-row items-center flex-1">
+						<view
+							v-for="opt in windowOptions"
+							:key="opt.value"
+							class="mr-2"
+							@tap="onWindowChange(opt.value)"
+						>
+							<cl-tag
+								:type="windowMonths == opt.value ? 'primary' : 'info'"
+								:plain="windowMonths != opt.value"
+								rounded
+							>
+								{{ opt.label }}
+							</cl-tag>
+						</view>
+					</view>
+
+					<cl-loading :size="14" v-if="runwayLoading"></cl-loading>
+
+					<cl-text :size="11" color="info" v-else>统计窗口</cl-text>
 				</view>
 
 				<view class="flex flex-row items-center mt-5">
@@ -116,7 +140,299 @@
 				</view>
 
 				<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
-					口径：环形表示未来 {{ runway.horizon_months }} 个月将耗用的账户余额占比，按当前收支速度测算
+					口径：环形表示未来 {{ runway.horizon_months }} 个月将耗用的账户余额占比，按{{ windowLabel }}收支速度测算
+				</cl-text>
+			</view>
+
+			<!-- 资金消耗与耗尽预测（绝对值口径） -->
+			<view
+				class="rounded-2xl mt-4 p-5"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<view class="flex flex-row items-center justify-between">
+					<cl-text :size="15" :pt="{ className: 'font-bold' }">
+						资金消耗与耗尽预测（按照绝对值）
+					</cl-text>
+
+					<cl-tag :type="outlookStatusType">{{ outlookStatusText }}</cl-tag>
+				</view>
+
+				<!-- 预测跨度切换 -->
+				<view class="flex flex-row items-center justify-between mt-4">
+					<view class="flex flex-row items-center flex-1 flex-wrap">
+						<view
+							v-for="opt in outlookOptions"
+							:key="opt.value"
+							class="mr-2 mb-1"
+							@tap="onOutlookChange(opt.value)"
+						>
+							<cl-tag
+								:type="outlookMonths == opt.value ? 'primary' : 'info'"
+								:plain="outlookMonths != opt.value"
+								rounded
+							>
+								{{ opt.label }}
+							</cl-tag>
+						</view>
+					</view>
+
+					<cl-loading :size="14" v-if="outlookLoading"></cl-loading>
+
+					<cl-text :size="11" color="info" v-else>预测跨度</cl-text>
+				</view>
+
+				<!-- 指定目标月份 -->
+				<view class="mt-3 flex flex-row items-center">
+					<view class="mr-2" @tap="openTargetPicker">
+						<cl-tag
+							:type="targetMonth == '' ? 'info' : 'primary'"
+							:plain="targetMonth == ''"
+							rounded
+						>
+							{{ targetMonth == "" ? "指定目标月份" : "目标 " + targetMonth }}
+						</cl-tag>
+					</view>
+
+					<cl-text
+						:size="11"
+						color="info"
+						v-if="targetMonth != ''"
+						@tap="clearTargetMonth"
+					>
+						清除
+					</cl-text>
+				</view>
+
+				<!-- 双环形：支出/收入、支出/净资产 -->
+				<view class="flex flex-row items-center mt-5">
+					<view class="flex-1 flex flex-col items-center">
+						<cl-progress-circle
+							:value="ratioRing"
+							:size="110"
+							:stroke-width="10"
+							:color="outlookColor"
+						>
+							<template #text>
+								<view
+									class="absolute inset-0 flex flex-col items-center justify-center"
+								>
+									<cl-text
+										:size="17"
+										:color="outlookColor"
+										:pt="{ className: 'font-bold' }"
+									>
+										{{ ratioText }}
+									</cl-text>
+									<cl-text :size="10" color="info" :pt="{ className: 'mt-1' }">
+										支出 / 收入
+									</cl-text>
+								</view>
+							</template>
+						</cl-progress-circle>
+					</view>
+
+					<view class="flex-1 flex flex-col items-center">
+						<cl-progress-circle
+							:value="netAssetRing"
+							:size="110"
+							:stroke-width="10"
+							:color="netAssetColor"
+						>
+							<template #text>
+								<view
+									class="absolute inset-0 flex flex-col items-center justify-center"
+								>
+									<cl-text
+										:size="17"
+										:color="netAssetColor"
+										:pt="{ className: 'font-bold' }"
+									>
+										{{ netAssetText }}
+									</cl-text>
+									<cl-text :size="10" color="info" :pt="{ className: 'mt-1' }">
+										支出 / 净资产
+									</cl-text>
+								</view>
+							</template>
+						</cl-progress-circle>
+					</view>
+				</view>
+
+				<!-- 统计项 -->
+				<view class="flex flex-row flex-wrap mt-5">
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">
+							截至 {{ outlook.target_month }} 累计收入
+						</cl-text>
+						<cl-text :size="14" :pt="{ className: 'font-bold' }" color="success">
+							{{ money(outlook.total_income) }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">
+							截至 {{ outlook.target_month }} 累计支出
+						</cl-text>
+						<cl-text :size="14" :pt="{ className: 'font-bold' }" color="error">
+							{{ money(outlook.total_expense) }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">支出占收入比例</cl-text>
+						<cl-text
+							:size="14"
+							:color="outlookColor"
+							:pt="{ className: 'font-bold' }"
+						>
+							{{ ratioText }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">净资产总额</cl-text>
+						<cl-text :size="14" :pt="{ className: 'font-bold' }">
+							{{ money(outlook.net_asset) }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">支出占净资产比例</cl-text>
+						<cl-text
+							:size="14"
+							:color="netAssetColor"
+							:pt="{ className: 'font-bold' }"
+						>
+							{{ netAssetText }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">累计净额</cl-text>
+						<cl-text
+							:size="14"
+							:color="outlook.net_amount >= 0 ? 'success' : 'error'"
+							:pt="{ className: 'font-bold' }"
+						>
+							{{ netAmountText }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">当前余额 / 期末预计余额</cl-text>
+						<cl-text :size="14" :pt="{ className: 'font-bold' }">
+							{{ money(outlook.opening_balance) }}
+						</cl-text>
+						<cl-text
+							:size="14"
+							:color="outlook.projected_balance < 0 ? 'error' : 'dark'"
+							:pt="{ className: 'font-bold' }"
+						>
+							→ {{ money(outlook.projected_balance) }}
+						</cl-text>
+					</view>
+
+					<view class="w-1/2 mb-3">
+						<cl-text :size="11" color="info">预计余额转负月份</cl-text>
+						<cl-text
+							:size="14"
+							:color="outlook.depletion_month ? 'error' : 'dark'"
+							:pt="{ className: 'font-bold' }"
+						>
+							{{ depletionMonthText }}
+						</cl-text>
+					</view>
+				</view>
+
+				<!-- 结论 -->
+				<view
+					class="pt-4 border-t"
+					:class="isDark ? '!border-surface-700' : '!border-surface-200'"
+				>
+					<cl-text :size="12">{{ outlook.message }}</cl-text>
+				</view>
+
+				<!-- 逐月明细 -->
+				<view
+					class="flex flex-row items-center mt-4 pt-4 border-t"
+					:class="isDark ? '!border-surface-700' : '!border-surface-200'"
+					@tap="toggleMonthly"
+				>
+					<cl-text :size="13" color="primary">
+						{{ showMonthly ? "收起逐月明细" : "展开逐月明细" }}
+					</cl-text>
+					<cl-icon
+						:size="16"
+						:name="showMonthly ? 'arrow-up-s-line' : 'arrow-down-s-line'"
+						color="primary"
+						:pt="{ className: 'ml-1' }"
+					></cl-icon>
+				</view>
+
+				<view v-if="showMonthly" class="mt-2">
+					<view class="flex flex-row items-center pb-2">
+						<cl-text :size="11" color="info" :pt="{ className: 'w-20' }">
+							月份
+						</cl-text>
+						<cl-text
+							:size="11"
+							color="info"
+							:pt="{ className: 'flex-1 text-right' }"
+						>
+							收入
+						</cl-text>
+						<cl-text
+							:size="11"
+							color="info"
+							:pt="{ className: 'flex-1 text-right' }"
+						>
+							支出
+						</cl-text>
+						<cl-text
+							:size="11"
+							color="info"
+							:pt="{ className: 'flex-1 text-right' }"
+						>
+							月末余额
+						</cl-text>
+					</view>
+
+					<scroll-view scroll-y class="h-60">
+						<view
+							class="flex flex-row items-center py-2"
+							v-for="(item, index) in outlook.monthly"
+							:key="index"
+						>
+							<cl-text :size="11" :pt="{ className: 'w-20' }">
+								{{ item.month }}
+							</cl-text>
+							<cl-text
+								:size="11"
+								color="success"
+								:pt="{ className: 'flex-1 text-right' }"
+							>
+								{{ money(item.income) }}
+							</cl-text>
+							<cl-text
+								:size="11"
+								color="error"
+								:pt="{ className: 'flex-1 text-right' }"
+							>
+								{{ money(item.expense) }}
+							</cl-text>
+							<cl-text
+								:size="11"
+								:color="item.balance < 0 ? 'error' : 'dark'"
+								:pt="{ className: 'flex-1 text-right font-bold' }"
+							>
+								{{ money(item.balance) }}
+							</cl-text>
+						</view>
+					</scroll-view>
+				</view>
+
+				<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
+					口径：不做摊销、不取均值，按收支管理里设置的真实金额逐月累加——固定收支按月计（年度固定只在发生月份计一次），临时收支在其发生月份一次性计入。左环为累计支出 / 累计收入，右环为累计支出 / 净资产总额（{{ money(outlook.net_asset) }}）。{{ outlook.from_month }} 起算至 {{ outlook.target_month }}。
 				</cl-text>
 			</view>
 
@@ -130,11 +446,72 @@
 		</view>
 
 		<CustomTabbar></CustomTabbar>
+
+		<!-- 目标月份选择面板 -->
+		<cl-popup v-model="targetVisible" title="选择目标月份">
+			<view class="p-4">
+				<cl-text :size="12" color="info">年份</cl-text>
+
+				<view class="flex flex-row flex-wrap mt-2">
+					<view
+						v-for="y in yearOptions"
+						:key="y"
+						class="mr-2 mb-2"
+						@tap="selectYear(y)"
+					>
+						<cl-tag
+							:type="tmpYear == y ? 'primary' : 'info'"
+							:plain="tmpYear != y"
+							rounded
+						>
+							{{ y }} 年
+						</cl-tag>
+					</view>
+				</view>
+
+				<cl-text :size="12" color="info" :pt="{ className: 'mt-3' }">月份</cl-text>
+
+				<view class="flex flex-row flex-wrap mt-2">
+					<view
+						v-for="m in monthOptions"
+						:key="m"
+						class="mr-2 mb-2"
+						@tap="selectMonth(m)"
+					>
+						<cl-tag
+							:type="tmpMonth == m ? 'primary' : 'info'"
+							:plain="tmpMonth != m"
+							rounded
+							:pt="{ className: monthAvailable(m) ? '' : '!opacity-40' }"
+						>
+							{{ m }} 月
+						</cl-tag>
+					</view>
+				</view>
+
+				<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
+					可选范围 {{ targetRangeText }}（当前月的下一月起，最多 120 个月）
+				</cl-text>
+
+				<view class="flex flex-row items-center mt-4">
+					<cl-button size="large" text border type="light" fluid @tap="closeTargetPicker">
+						取消
+					</cl-button>
+
+					<cl-button size="large" fluid @tap="confirmTarget">确定</cl-button>
+				</view>
+			</view>
+		</cl-popup>
 	</cl-page>
 </template>
 
 <script setup lang="ts">
-import { summaryApi, type FundRunway, type Summary } from "@/api";
+import {
+	summaryApi,
+	type AbsoluteOutlook,
+	type FundRunway,
+	type Summary
+} from "@/api";
 import { isLogin } from "@/api/request";
 import { isDark, router } from "@/.cool";
 import { computed, ref } from "vue";
@@ -165,8 +542,66 @@ const runway = ref<FundRunway>({
 	message: ""
 });
 
+// 资金消耗与耗尽预测（绝对值口径）
+const outlook = ref<AbsoluteOutlook>({
+	opening_balance: 0,
+	account_count: 0,
+	months: 12,
+	from_month: "",
+	target_month: "",
+	total_income: 0,
+	total_expense: 0,
+	net_amount: 0,
+	expense_income_ratio: null,
+	expense_income_percent: null,
+	net_asset: 0,
+	expense_net_asset_ratio: null,
+	expense_net_asset_percent: null,
+	projected_balance: 0,
+	depletion_month: null,
+	monthly: [],
+	status: "nodata",
+	message: ""
+});
+
+// 绝对值口径的预测跨度（月），从当前月的下一月起算
+const outlookOptions: { label: string; value: number }[] = [
+	{ label: "3 个月", value: 3 },
+	{ label: "6 个月", value: 6 },
+	{ label: "12 个月", value: 12 },
+	{ label: "24 个月", value: 24 },
+	{ label: "36 个月", value: 36 },
+	{ label: "60 个月", value: 60 }
+];
+
+// 当前预测跨度
+const outlookMonths = ref(12);
+
+// 指定的目标月份 YYYY-MM（为空表示走上面的快捷跨度）
+const targetMonth = ref("");
+
+// 是否展开逐月明细
+const showMonthly = ref(false);
+
 // 加载中
 const loading = ref(false);
+
+// 环形加载中
+const runwayLoading = ref(false);
+
+// 绝对值卡片加载中
+const outlookLoading = ref(false);
+
+// 统计窗口：取最近 N 个月的收支速度来测算，0 = 全部历史（后端按最早一条记录起算）
+const windowOptions: { label: string; value: number }[] = [
+	{ label: "全部", value: 0 },
+	{ label: "近 3 月", value: 3 },
+	{ label: "近 6 月", value: 6 },
+	{ label: "近 12 月", value: 12 }
+];
+
+// 当前统计窗口
+const windowMonths = ref(6);
 
 /**
  * 金额格式化
@@ -238,6 +673,390 @@ const monthsText = computed(() => {
 });
 
 /**
+ * 统计窗口文案（全部时展示后端回显的实际跨度）
+ */
+const windowLabel = computed(() => {
+	if (windowMonths.value == 0) {
+		return "全部历史（" + runway.value.window_months + " 个月）";
+	}
+
+	return "近 " + runway.value.window_months + " 个月";
+});
+
+/**
+ * 加载资金消耗数据（切换统计窗口时只刷这一块）
+ */
+async function loadRunway() {
+	runwayLoading.value = true;
+
+	try {
+		runway.value = await summaryApi.fundRunway({
+			months: windowMonths.value,
+			horizon: 12
+		});
+	} catch (e: any) {
+		console.log("加载失败", e);
+	} finally {
+		runwayLoading.value = false;
+	}
+}
+
+/**
+ * 切换统计窗口
+ */
+function onWindowChange(v: number) {
+	if (windowMonths.value == v) {
+		return;
+	}
+
+	windowMonths.value = v;
+	loadRunway();
+}
+
+/* ---------- 资金消耗与耗尽预测（绝对值口径） ---------- */
+
+/**
+ * 支出占收入比例文案
+ */
+const ratioText = computed(() => {
+	if (outlook.value.expense_income_percent == null) {
+		return "—";
+	}
+
+	return Number(outlook.value.expense_income_percent).toFixed(1) + "%";
+});
+
+/**
+ * 支出占收入比例环形值（封顶 100）
+ */
+const ratioRing = computed(() => {
+	const v = Number(outlook.value.expense_income_percent ?? 0);
+
+	return Math.min(100, Math.max(0, v));
+});
+
+/**
+ * 支出占净资产比例文案
+ */
+const netAssetText = computed(() => {
+	if (outlook.value.expense_net_asset_percent == null) {
+		return "—";
+	}
+
+	return Number(outlook.value.expense_net_asset_percent).toFixed(1) + "%";
+});
+
+/**
+ * 支出占净资产比例环形值（封顶 100）
+ */
+const netAssetRing = computed(() => {
+	const v = Number(outlook.value.expense_net_asset_percent ?? 0);
+
+	return Math.min(100, Math.max(0, v));
+});
+
+/**
+ * 支出占收入比例颜色
+ */
+const outlookColor = computed(() => {
+	const map: Record<string, string> = {
+		healthy: "#52c41a",
+		warning: "#faad14",
+		danger: "#ff4d4f",
+		nodata: "#bfbfbf"
+	};
+
+	return map[outlook.value.status] ?? "#bfbfbf";
+});
+
+/**
+ * 支出占净资产比例颜色：<50% 安全，<80% 需关注，≥80% 紧张
+ */
+const netAssetColor = computed(() => {
+	if (outlook.value.expense_net_asset_percent == null) {
+		return "#bfbfbf";
+	}
+
+	const pct = Number(outlook.value.expense_net_asset_percent);
+
+	if (pct >= 80) {
+		return "#ff4d4f";
+	}
+
+	if (pct >= 50) {
+		return "#faad14";
+	}
+
+	return "#52c41a";
+});
+
+/**
+ * 状态类型
+ */
+const outlookStatusType = computed(() => {
+	const map: Record<string, string> = {
+		healthy: "success",
+		warning: "warn",
+		danger: "error",
+		nodata: "info"
+	};
+
+	return map[outlook.value.status] ?? "info";
+});
+
+/**
+ * 状态文案
+ */
+const outlookStatusText = computed(() => {
+	const map: Record<string, string> = {
+		healthy: "健康",
+		warning: "需关注",
+		danger: "入不敷出",
+		nodata: "数据不足"
+	};
+
+	return map[outlook.value.status] ?? "数据不足";
+});
+
+/**
+ * 累计净额文案
+ */
+const netAmountText = computed(() => {
+	const v = Number(outlook.value.net_amount ?? 0);
+
+	return (v >= 0 ? "+" : "-") + money(Math.abs(v));
+});
+
+/**
+ * 转负月份文案
+ */
+const depletionMonthText = computed(() => {
+	if (outlook.value.depletion_month == null || outlook.value.depletion_month == "") {
+		return "不会转负";
+	}
+
+	return outlook.value.depletion_month;
+});
+
+/**
+ * 两位补零
+ */
+function pad2(v: number): string {
+	return v < 10 ? "0" + v : "" + v;
+}
+
+/**
+ * 年月 ↔ 月序号互转（序号 = 年 * 12 + 月 - 1，便于比较先后）
+ */
+function totalOf(y: number, m: number): number {
+	return y * 12 + m - 1;
+}
+
+// 可选目标月份范围：当前月的下一月 ~ 往后 120 个月（与后端 months 上限一致）
+const now = new Date();
+const minTotal = totalOf(now.getFullYear(), now.getMonth() + 1) + 1;
+const maxTotal = minTotal + 119;
+
+// 可选年份 / 月份列表
+const yearOptions: number[] = [];
+for (let y = Math.floor(minTotal / 12); y <= Math.floor(maxTotal / 12); y++) {
+	yearOptions.push(y);
+}
+
+const monthOptions: number[] = [];
+for (let m = 1; m <= 12; m++) {
+	monthOptions.push(m);
+}
+
+// 目标月份选择面板
+const targetVisible = ref(false);
+const tmpYear = ref(0);
+const tmpMonth = ref(0);
+
+// 可选范围文案
+const targetRangeText =
+	Math.floor(minTotal / 12) + "-" + pad2((minTotal % 12) + 1) + " ~ " + Math.floor(maxTotal / 12) + "-" + pad2((maxTotal % 12) + 1);
+
+/**
+ * 该月份是否可选（受起止范围限制）
+ */
+function monthAvailable(m: number): boolean {
+	const t = totalOf(tmpYear.value, m);
+
+	return t >= minTotal && t <= maxTotal;
+}
+
+/**
+ * 某年第一个可选月份
+ */
+function firstAvailableMonth(y: number): number {
+	for (let m = 1; m <= 12; m++) {
+		const t = totalOf(y, m);
+
+		if (t >= minTotal && t <= maxTotal) {
+			return m;
+		}
+	}
+
+	return 1;
+}
+
+/**
+ * 打开面板：无指定月份时定位到起始月
+ */
+function openTargetPicker() {
+	if (targetMonth.value != "") {
+		const arr = targetMonth.value.split("-");
+		tmpYear.value = Number(arr[0]);
+		tmpMonth.value = Number(arr[1]);
+	} else {
+		tmpYear.value = Math.floor(minTotal / 12);
+		tmpMonth.value = (minTotal % 12) + 1;
+	}
+
+	targetVisible.value = true;
+}
+
+/**
+ * 关闭面板
+ */
+function closeTargetPicker() {
+	targetVisible.value = false;
+}
+
+/**
+ * 选年份：原月份越界时顺延到该年第一个可选月
+ */
+function selectYear(y: number) {
+	tmpYear.value = y;
+
+	if (!monthAvailable(tmpMonth.value)) {
+		tmpMonth.value = firstAvailableMonth(y);
+	}
+}
+
+/**
+ * 选月份：越界忽略
+ */
+function selectMonth(m: number) {
+	if (!monthAvailable(m)) {
+		return;
+	}
+
+	tmpMonth.value = m;
+}
+
+/**
+ * 确定：换算跨度后重新测算
+ */
+function confirmTarget() {
+	targetVisible.value = false;
+
+	const value = tmpYear.value + "-" + pad2(tmpMonth.value);
+
+	if (value == targetMonth.value) {
+		return;
+	}
+
+	applyTargetMonth(value);
+}
+
+/**
+ * 清除指定月份（保留当前跨度，不再重新请求）
+ */
+function clearTargetMonth() {
+	targetMonth.value = "";
+}
+
+/**
+ * 目标月份 YYYY-MM → 跨度（月），从当前月的下一月起算
+ */
+function monthsFromTarget(target: string): number | null {
+	if (target == null || target == "") {
+		return null;
+	}
+
+	const arr = target.split("-");
+
+	if (arr.length < 2) {
+		return null;
+	}
+
+	const y = Number(arr[0]);
+	const m = Number(arr[1]);
+
+	if (isNaN(y) || isNaN(m)) {
+		return null;
+	}
+
+	const diff = totalOf(y, m) - totalOf(new Date().getFullYear(), new Date().getMonth() + 1);
+
+	if (isNaN(diff)) {
+		return null;
+	}
+
+	return Math.min(120, Math.max(1, diff));
+}
+
+/**
+ * 应用目标月份（不在快捷档位里时，快捷标签自然不高亮）
+ */
+function applyTargetMonth(value: string) {
+	const n = monthsFromTarget(value);
+
+	if (n == null) {
+		return;
+	}
+
+	targetMonth.value = value;
+
+	if (outlookMonths.value == n) {
+		return;
+	}
+
+	outlookMonths.value = n;
+	loadOutlook();
+}
+
+/**
+ * 加载绝对值口径数据
+ */
+async function loadOutlook() {
+	outlookLoading.value = true;
+
+	try {
+		outlook.value = await summaryApi.absoluteOutlook({
+			months: outlookMonths.value
+		});
+	} catch (e: any) {
+		console.log("加载失败", e);
+	} finally {
+		outlookLoading.value = false;
+	}
+}
+
+/**
+ * 展开 / 收起逐月明细
+ */
+function toggleMonthly() {
+	showMonthly.value = !showMonthly.value;
+}
+
+/**
+ * 切换预测跨度
+ */
+function onOutlookChange(v: number) {
+	if (outlookMonths.value == v) {
+		return;
+	}
+
+	// 走快捷跨度时清掉自定义的指定月份
+	targetMonth.value = "";
+	outlookMonths.value = v;
+	loadOutlook();
+}
+
+/**
  * 加载数据
  */
 async function refresh() {
@@ -249,13 +1068,9 @@ async function refresh() {
 	loading.value = true;
 
 	try {
-		const [s, r] = await Promise.all([
-			summaryApi.get(),
-			summaryApi.fundRunway({ months: 6, horizon: 12 })
-		]);
-
-		summary.value = s;
-		runway.value = r;
+		summary.value = await summaryApi.get();
+		await loadRunway();
+		await loadOutlook();
 	} catch (e: any) {
 		console.log("加载失败", e);
 	} finally {

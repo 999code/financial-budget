@@ -90,7 +90,8 @@ function stringify(params: any): string {
 		const k = keys[i];
 		const v = params[k];
 
-		if (v != null && v != "") {
+		// 注意用 !== 严格比较：宽松比较下 0 == "" 为真，会把 months=0 这类合法参数丢掉
+		if (v != null && v !== "") {
 			list.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
 		}
 	}

@@ -36,6 +36,37 @@ export type FundRunway = {
 	message: string;
 };
 
+// 资金消耗与耗尽预测（绝对值口径）逐月明细
+export type AbsoluteOutlookMonth = {
+	month: string;
+	income: number;
+	expense: number;
+	net: number;
+	balance: number;
+};
+
+// 资金消耗与耗尽预测（绝对值口径）
+export type AbsoluteOutlook = {
+	opening_balance: number;
+	account_count: number;
+	months: number;
+	from_month: string;
+	target_month: string;
+	total_income: number;
+	total_expense: number;
+	net_amount: number;
+	expense_income_ratio: number | null;
+	expense_income_percent: number | null;
+	net_asset: number;
+	expense_net_asset_ratio: number | null;
+	expense_net_asset_percent: number | null;
+	projected_balance: number;
+	depletion_month: string | null;
+	monthly: AbsoluteOutlookMonth[];
+	status: string;
+	message: string;
+};
+
 /** 登录注册 */
 export const authApi = {
 	login(data: { username: string; password: string }) {
@@ -56,6 +87,14 @@ export const summaryApi = {
 	fundRunway(params?: { months?: number; horizon?: number }) {
 		return request<FundRunway>({
 			url: "/summary/fund-runway",
+			params
+		});
+	},
+
+	/** 绝对值口径：months 为预测跨度（月），从当前月的下一月起算，1~120 */
+	absoluteOutlook(params?: { months?: number }) {
+		return request<AbsoluteOutlook>({
+			url: "/summary/absolute-outlook",
 			params
 		});
 	}

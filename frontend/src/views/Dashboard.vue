@@ -29,8 +29,9 @@
     <el-card class="runway" shadow="hover" v-loading="runwayLoading">
       <template #header>
         <div class="runway__hd">
-          <span class="runway__title">资金消耗与耗尽预测</span>
+          <span class="runway__title">资金消耗与耗尽预测（按照均值）</span>
           <el-select v-model="windowMonths" size="small" class="runway__win" @change="loadRunway">
+            <el-option :value="0" label="全部历史" />
             <el-option :value="3" label="最近 3 个月" />
             <el-option :value="6" label="最近 6 个月" />
             <el-option :value="12" label="最近 12 个月" />
@@ -87,8 +88,153 @@
         <span class="runway__tx">{{ runway.message }}</span>
       </div>
       <p class="runway__note">
-        ※ 环形进度 = 按当前消耗速度，未来 {{ runway.horizon_months }} 个月将耗用的账户余额占比，越低越安全。
+        ※ 环形进度 = 按{{ windowLabel }}消耗速度，未来 {{ runway.horizon_months }} 个月将耗用的账户余额占比，越低越安全。
         消耗速度取「当前月度运行率」：固定收支按月计（年度固定 /12），临时收支在所选窗口内摊销，已终止的固定收支不计入。
+      </p>
+    </el-card>
+
+    <!-- 资金消耗与耗尽预测（绝对值口径） -->
+    <el-card class="outlook" shadow="hover" v-loading="outlookLoading">
+      <template #header>
+        <div class="outlook__hd">
+          <span class="outlook__title">资金消耗与耗尽预测（按照绝对值）</span>
+          <div class="outlook__pick">
+            <el-radio-group v-model="quickMonths" size="small" @change="onQuickChange">
+              <el-radio-button v-for="m in quickOptions" :key="m" :value="m">{{ m }} 个月</el-radio-button>
+            </el-radio-group>
+            <el-date-picker
+              v-model="customTarget"
+              type="month"
+              size="small"
+              value-format="YYYY-MM"
+              placeholder="指定目标月份"
+              class="outlook__dp"
+              @change="onTargetChange"
+            />
+          </div>
+        </div>
+      </template>
+
+      <div class="outlook__body">
+        <el-progress
+          type="dashboard"
+          :percentage="ratioRing"
+          :color="outlookColor"
+          :width="168"
+          :stroke-width="12"
+        >
+          <template #default>
+            <div class="ring">
+              <span class="ring__val" :style="{ color: outlookColor }">{{ ratioText }}</span>
+              <span class="ring__cap">支出 / 收入</span>
+            </div>
+          </template>
+        </el-progress>
+
+        <el-progress
+          type="dashboard"
+          :percentage="netAssetRing"
+          :color="netAssetColor"
+          :width="150"
+          :stroke-width="12"
+        >
+          <template #default>
+            <div class="ring">
+              <span class="ring__val" :style="{ color: netAssetColor }">{{ netAssetText }}</span>
+              <span class="ring__cap">支出 / 净资产</span>
+            </div>
+          </template>
+        </el-progress>
+
+        <div class="outlook__stats">
+          <div class="stat">
+            <span class="stat__lb">截至 {{ outlook.target_month }} 累计收入</span>
+            <span class="stat__vl c-income">¥{{ fmt(outlook.total_income) }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">截至 {{ outlook.target_month }} 累计支出</span>
+            <span class="stat__vl c-expense">¥{{ fmt(outlook.total_expense) }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">支出占收入比例</span>
+            <span class="stat__vl" :style="{ color: outlookColor }">{{ ratioText }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">净资产总额</span>
+            <span class="stat__vl">¥{{ fmt(outlook.net_asset) }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">支出占净资产比例</span>
+            <span class="stat__vl" :style="{ color: netAssetColor }">{{ netAssetText }}</span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">累计净额</span>
+            <span class="stat__vl" :style="{ color: outlook.net_amount >= 0 ? '#f56c6c' : '#67c23c' }">
+              {{ outlook.net_amount >= 0 ? '+' : '-' }}¥{{ fmt(Math.abs(outlook.net_amount)) }}
+            </span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">当前余额 / 期末预计余额</span>
+            <span class="stat__vl">
+              ¥{{ fmt(outlook.opening_balance) }}
+              <span class="stat__sep">→</span>
+              <span :style="{ color: outlook.projected_balance < 0 ? '#f56c6c' : '#303133' }">
+                ¥{{ fmt(outlook.projected_balance) }}
+              </span>
+            </span>
+          </div>
+          <div class="stat">
+            <span class="stat__lb">预计余额转负月份</span>
+            <span class="stat__vl" :style="{ color: outlook.depletion_month ? '#f56c6c' : '#303133' }">
+              {{ outlook.depletion_month || '不会转负' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="outlook__msg">
+        <el-tag :type="outlookTagType" size="small" effect="dark">{{ outlookStatusText }}</el-tag>
+        <span class="outlook__tx">{{ outlook.message }}</span>
+      </div>
+
+      <div class="outlook__detail">
+        <el-button link type="primary" size="small" @click="showMonthly = !showMonthly">
+          {{ showMonthly ? '收起逐月明细' : '展开逐月明细' }}
+        </el-button>
+        <el-table
+          v-if="showMonthly"
+          :data="outlook.monthly"
+          size="small"
+          max-height="280"
+          class="outlook__tb"
+        >
+          <el-table-column prop="month" label="月份" width="100" />
+          <el-table-column label="收入" align="right">
+            <template #default="{ row }"><span class="c-income">¥{{ fmt(row.income) }}</span></template>
+          </el-table-column>
+          <el-table-column label="支出" align="right">
+            <template #default="{ row }"><span class="c-expense">¥{{ fmt(row.expense) }}</span></template>
+          </el-table-column>
+          <el-table-column label="净额" align="right">
+            <template #default="{ row }">
+              <span :style="{ color: row.net >= 0 ? '#f56c6c' : '#67c23c' }">
+                {{ row.net >= 0 ? '+' : '-' }}¥{{ fmt(Math.abs(row.net)) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="月末预计余额" align="right">
+            <template #default="{ row }">
+              <span :style="{ color: row.balance < 0 ? '#f56c6c' : '#303133' }">¥{{ fmt(row.balance) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <p class="outlook__note">
+        ※ 绝对值口径：不做摊销、不取均值，按收支管理里设置的真实金额逐月累加到所选时间点——
+        固定收支按月计（年度固定只在发生月份计一次），临时收支在其发生月份一次性计入，已终止的固定收支不再计入。
+        左环为「累计支出 / 累计收入」，右环为「累计支出 / 净资产总额」（净资产 = 当前账户余额合计 ¥{{ fmt(outlook.net_asset) }}，反映这段时间会花掉多少家底）。
+        起点为当前账户余额 ¥{{ fmt(outlook.opening_balance) }}，{{ outlook.from_month }} 起算至 {{ outlook.target_month }}。
       </p>
     </el-card>
 
@@ -102,7 +248,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getSummary, getFundRunway } from '@/api/summary'
+import { getSummary, getFundRunway, getAbsoluteOutlook } from '@/api/summary'
 
 const summary = reactive({
   total_balance: 0,
@@ -129,6 +275,11 @@ const runway = reactive({
   message: ''
 })
 
+// 统计窗口文案：0 表示全部历史，后端会回显实际跨度
+const windowLabel = computed(() =>
+  windowMonths.value === 0 ? `全部历史（${runway.window_months} 个月）` : `最近 ${runway.window_months} 个月`
+)
+
 async function loadRunway() {
   runwayLoading.value = true
   try {
@@ -141,10 +292,79 @@ async function loadRunway() {
   }
 }
 
+/* ---------- 资金消耗与耗尽预测（绝对值口径） ---------- */
+const quickOptions = [3, 6, 12, 24, 36, 60]
+const quickMonths = ref(12)
+const customTarget = ref('')
+const outlookMonths = ref(12)
+const showMonthly = ref(false)
+const outlookLoading = ref(false)
+const outlook = reactive({
+  opening_balance: 0,
+  account_count: 0,
+  months: 12,
+  from_month: '',
+  target_month: '',
+  total_income: 0,
+  total_expense: 0,
+  net_amount: 0,
+  expense_income_ratio: null,
+  expense_income_percent: null,
+  net_asset: 0,
+  expense_net_asset_ratio: null,
+  expense_net_asset_percent: null,
+  projected_balance: 0,
+  depletion_month: null,
+  monthly: [],
+  status: 'nodata',
+  message: ''
+})
+
+// 目标月份 → 跨度（月），从当前月的下一月起算
+function monthsFromTarget(target) {
+  if (!target) return null
+  const [y, m] = target.split('-').map(Number)
+  const now = new Date()
+  const diff = (y - now.getFullYear()) * 12 + (m - (now.getMonth() + 1))
+  if (!Number.isFinite(diff)) return null
+  return Math.min(Math.max(diff, 1), 120)
+}
+
+function onQuickChange(value) {
+  customTarget.value = ''
+  outlookMonths.value = value
+  loadOutlook()
+}
+
+function onTargetChange(value) {
+  if (!value) {
+    quickMonths.value = null
+    return
+  }
+  const n = monthsFromTarget(value)
+  if (n == null) return
+  quickMonths.value = quickOptions.includes(n) ? n : null
+  outlookMonths.value = n
+  loadOutlook()
+}
+
+async function loadOutlook() {
+  outlookLoading.value = true
+  try {
+    const data = await getAbsoluteOutlook({ months: outlookMonths.value })
+    Object.assign(outlook, data)
+  } catch {
+    /* request 拦截器已统一提示错误 */
+  } finally {
+    outlookLoading.value = false
+  }
+}
+
 onMounted(async () => {
   const data = await getSummary()
   Object.assign(summary, data)
   await loadRunway()
+  await loadOutlook()
 })
 
 const ringColor = computed(
@@ -190,6 +410,60 @@ const depletionText = computed(() => {
   if (runway.status === 'nodata') return '—'
   return runway.depletion_date || '不会耗尽'
 })
+
+const ratioText = computed(() =>
+  outlook.expense_income_percent == null ? '—' : `${outlook.expense_income_percent}%`
+)
+
+// 环形最大 100%，超出部分用文案与颜色表达
+const ratioRing = computed(() =>
+  Math.min(100, Math.max(0, Number(outlook.expense_income_percent || 0)))
+)
+
+const netAssetText = computed(() =>
+  outlook.expense_net_asset_percent == null ? '—' : `${outlook.expense_net_asset_percent}%`
+)
+
+const netAssetRing = computed(() =>
+  Math.min(100, Math.max(0, Number(outlook.expense_net_asset_percent || 0)))
+)
+
+// 净资产被消耗的程度：<50% 安全，<80% 需关注，≥80% 紧张
+const netAssetColor = computed(() => {
+  const pct = Number(outlook.expense_net_asset_percent || 0)
+  if (outlook.expense_net_asset_percent == null) return '#909399'
+  return pct >= 80 ? '#f56c6c' : pct >= 50 ? '#e6a23c' : '#67c23a'
+})
+
+const outlookColor = computed(
+  () =>
+    ({
+      healthy: '#67c23a',
+      warning: '#e6a23c',
+      danger: '#f56c6c',
+      nodata: '#909399'
+    }[outlook.status] || '#909399')
+)
+
+const outlookTagType = computed(
+  () =>
+    ({
+      healthy: 'success',
+      warning: 'warning',
+      danger: 'danger',
+      nodata: 'info'
+    }[outlook.status] || 'info')
+)
+
+const outlookStatusText = computed(
+  () =>
+    ({
+      healthy: '健康',
+      warning: '需关注',
+      danger: '入不敷出',
+      nodata: '数据不足'
+    }[outlook.status] || '数据不足')
+)
 
 const fmt = (value) =>
   value == null
@@ -282,6 +556,67 @@ const fmt = (value) =>
   color: #606266;
 }
 .runway__note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #a8abb2;
+  line-height: 1.6;
+}
+.outlook {
+  margin-top: 20px;
+}
+.outlook__hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.outlook__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.outlook__pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.outlook__dp {
+  width: 150px;
+}
+.outlook__body {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+.outlook__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 14px 28px;
+  flex: 1;
+  min-width: 300px;
+}
+.outlook__msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #ebeef5;
+}
+.outlook__tx {
+  font-size: 14px;
+  color: #606266;
+}
+.outlook__detail {
+  margin-top: 12px;
+}
+.outlook__tb {
+  margin-top: 10px;
+  width: 100%;
+}
+.outlook__note {
   margin: 10px 0 0;
   font-size: 12px;
   color: #a8abb2;

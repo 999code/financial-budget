@@ -2,6 +2,56 @@
 from pydantic import BaseModel, Field
 
 
+class AbsoluteOutlookMonth(BaseModel):
+    """绝对值口径下某一个月的收支与累计余额。"""
+
+    month: str = Field("", description="月份 YYYY-MM")
+    income: float = Field(0.0, description="该月收入合计")
+    expense: float = Field(0.0, description="该月支出合计")
+    net: float = Field(0.0, description="该月净额（收入 − 支出）")
+    balance: float = Field(0.0, description="该月末账户预计余额")
+
+
+class AbsoluteOutlookRead(BaseModel):
+    """资金消耗与耗尽预测（绝对值口径）。
+
+    与 FundRunwayRead 的区别：不把临时收支摊销成「月均运行率」，而是按
+    收支管理里设置的真实金额逐月累加到所选时间点，得到该时点的累计收入、
+    累计支出以及「支出 / 收入」比例，同时模拟账户余额找出转负的月份。
+    """
+
+    opening_balance: float = Field(0.0, description="当前账户余额合计（模拟起点）")
+    account_count: int = Field(0, description="账户数量")
+    months: int = Field(12, description="预测跨度（月）")
+    from_month: str = Field("", description="起始月份 YYYY-MM（当前月的下一月）")
+    target_month: str = Field("", description="目标月份 YYYY-MM")
+    total_income: float = Field(0.0, description="截至目标月份的累计收入")
+    total_expense: float = Field(0.0, description="截至目标月份的累计支出")
+    net_amount: float = Field(0.0, description="累计净额（收入 − 支出）")
+    expense_income_ratio: float | None = Field(
+        None, description="支出占收入的比例（0~N，可超过 1；收入为 0 时为 null）"
+    )
+    expense_income_percent: float | None = Field(
+        None, description="支出占收入的百分比（如 128.5；收入为 0 时为 null）"
+    )
+    net_asset: float = Field(0.0, description="净资产总额（账户余额合计，比例的基准）")
+    expense_net_asset_ratio: float | None = Field(
+        None, description="支出占净资产总额的比例（0~N，可超过 1；净资产为 0 时为 null）"
+    )
+    expense_net_asset_percent: float | None = Field(
+        None, description="支出占净资产总额的百分比（如 16.4；净资产为 0 时为 null）"
+    )
+    projected_balance: float = Field(0.0, description="目标月末预计账户余额")
+    depletion_month: str | None = Field(
+        None, description="账户余额首次转负的月份 YYYY-MM；不会转负时为 null"
+    )
+    monthly: list[AbsoluteOutlookMonth] = Field(default_factory=list, description="逐月明细")
+    status: str = Field(
+        "nodata", description="healthy(支出<收入)/warning/danger(入不敷出或余额转负)/nodata"
+    )
+    message: str = Field("", description="结论文案，可直接展示给用户")
+
+
 class FundRunwayRead(BaseModel):
     """账户资金消耗进度与耗尽预测。
 
