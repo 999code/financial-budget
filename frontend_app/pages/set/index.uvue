@@ -1,0 +1,83 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<cl-list :pt="{ className: 'mb-3' }">
+				<cl-list-item
+					:label="t('通用设置')"
+					icon="settings-line"
+					arrow
+					hoverable
+					@tap="router.to('/pages/set/general')"
+				>
+				</cl-list-item>
+				<cl-list-item
+					:label="t('通知设置')"
+					icon="notification-4-line"
+					arrow
+					hoverable
+					@tap="router.to('/pages/set/notice')"
+				>
+				</cl-list-item>
+				<cl-list-item :label="t('隐私设置')" icon="lock-line" arrow hoverable>
+				</cl-list-item>
+			</cl-list>
+
+			<cl-list :pt="{ className: 'mb-3' }">
+				<cl-list-item
+					:label="$t('关于{name}', { name: config.name })"
+					icon="error-warning-line"
+					arrow
+					hoverable
+					:pt="{
+						label: {
+							className: 'flex-1'
+						}
+					}"
+					@tap="router.to('/pages/set/about')"
+				>
+				</cl-list-item>
+
+				<cl-list-item
+					:label="t('联系我们')"
+					icon="customer-service-line"
+					arrow
+					hoverable
+					@tap="refs.open('cs')"
+				>
+				</cl-list-item>
+			</cl-list>
+
+			<cl-list :pt="{ className: 'mb-3' }">
+				<cl-list-item hoverable justify="center" @tap="toLogout">
+					<cl-text color="error">{{ t("退出登录") }}</cl-text>
+				</cl-list-item>
+			</cl-list>
+		</view>
+
+		<!-- 联系我们 -->
+		<contact-us :ref="refs.set('cs')"></contact-us>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { config } from "@/config";
+import { router, useRefs, useStore, t, $t } from "@/.cool";
+import { useUi } from "@/uni_modules/cool-ui";
+import ContactUs from "./components/contact-us.uvue";
+
+const refs = useRefs();
+const ui = useUi();
+const { user } = useStore();
+
+function toLogout() {
+	ui.showConfirm({
+		title: t("提示"),
+		message: t("确定退出登录吗？"),
+		callback(action) {
+			if (action == "confirm") {
+				user.logout();
+			}
+		}
+	});
+}
+</script>

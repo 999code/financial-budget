@@ -1,0 +1,15 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<cl-list>
+				<cl-list-item :label="t('开启通知')">
+					<cl-switch></cl-switch>
+				</cl-list-item>
+			</cl-list>
+		</view>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { t } from "@/.cool";
+</script>

@@ -1,0 +1,101 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<cl-list>
+				<cl-list-item label="显示图标">
+					<cl-switch v-model="isIcon"></cl-switch>
+				</cl-list-item>
+
+				<cl-list-item label="图标大一点">
+					<cl-switch v-model="isIconSize"></cl-switch>
+				</cl-list-item>
+
+				<cl-list-item label="显示文字">
+					<cl-switch v-model="isText"></cl-switch>
+				</cl-list-item>
+
+				<cl-list-item label="文字大一点">
+					<cl-switch v-model="isTextSize"></cl-switch>
+				</cl-list-item>
+
+				<cl-list-item label="自定义">
+					<cl-switch v-model="isCustom"></cl-switch>
+				</cl-list-item>
+			</cl-list>
+		</view>
+
+		<cl-tabbar
+			v-model="value"
+			:list="list"
+			:selected-color="selectedColor"
+			:color="color"
+			:height="isCustom ? 80 : 60"
+			:icon-size="isIconSize ? 36 : 28"
+			:text-size="isTextSize ? 16 : 12"
+			:show-icon="isIcon"
+			:show-text="isText"
+			:background-color="backgroundColor"
+			:pt="{
+				className: parseClass([[isCustom, 'rounded-full']]),
+				footer: {
+					className: parseClass([[isCustom, '!bg-transparent']])
+				},
+				footerContent: {
+					className: parseClass([[isCustom, '!p-5 !pt-0']])
+				}
+			}"
+		></cl-tabbar>
+	</cl-page>
+</template>
+
+<script lang="ts" setup>
+import { t } from "@/.cool";
+import { computed, ref } from "vue";
+import type { ClTabbarItem } from "@/uni_modules/cool-ui";
+import { getColor, isDark, parseClass } from "@/.cool";
+
+const isIcon = ref(true);
+const isIconSize = ref(false);
+const isText = ref(true);
+const isTextSize = ref(false);
+const isCustom = ref(false);
+
+const selectedColor = computed(() => getColor("primary-500"));
+const color = computed(() => getColor("surface-300"));
+const backgroundColor = computed(() => {
+	return isDark.value
+		? isCustom.value
+			? getColor("surface-800")
+			: getColor("surface-900")
+		: "white";
+});
+
+const value = ref("home");
+
+const list = ref<ClTabbarItem[]>([
+	{
+		text: t("首页"),
+		icon: "/static/demo/tabbar/home.png",
+		selectedIcon: "/static/demo/tabbar/home2.png",
+		value: "home"
+	},
+	{
+		text: t("音乐"),
+		icon: "/static/demo/tabbar/music.png",
+		selectedIcon: "/static/demo/tabbar/music2.png",
+		value: "category"
+	},
+	{
+		text: t("睡眠"),
+		icon: "/static/demo/tabbar/sleep.png",
+		selectedIcon: "/static/demo/tabbar/sleep2.png",
+		value: "cart"
+	},
+	{
+		text: t("我的"),
+		icon: "/static/demo/tabbar/my.png",
+		selectedIcon: "/static/demo/tabbar/my2.png",
+		value: "my"
+	}
+]);
+</script>

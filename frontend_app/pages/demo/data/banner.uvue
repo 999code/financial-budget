@@ -1,0 +1,58 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<demo-item :label="t('基础用法')">
+				<cl-banner :list="list"></cl-banner>
+			</demo-item>
+
+			<demo-item :label="t('禁用手势')">
+				<cl-banner :list="list" :disable-touch="true"></cl-banner>
+			</demo-item>
+
+			<demo-item :label="t('自定义样式')">
+				<cl-banner
+					:list="list"
+					:pt="{
+						className: 'mx-[-6px] !rounded-none',
+						item: {
+							className: parseClass(['scale-y-80 !px-[6px]'])
+						},
+						itemActive: {
+							className: parseClass(['!scale-y-100'])
+						},
+						image: {
+							className: '!rounded-none'
+						}
+					}"
+					:previous-margin="40"
+					:next-margin="40"
+				></cl-banner>
+			</demo-item>
+
+			<demo-item :label="t('自定义样式2')">
+				<cl-banner
+					:list="list"
+					:pt="{
+						className: 'mx-[-6px]',
+						item: {
+							className: parseClass(['px-[6px]'])
+						}
+					}"
+					:next-margin="40"
+				></cl-banner>
+			</demo-item>
+		</view>
+	</cl-page>
+</template>
+
+<script lang="ts" setup>
+import DemoItem from "../components/item.uvue";
+import { ref } from "vue";
+import { parseClass, t } from "@/.cool";
+
+const list = ref<string[]>([
+	"https://unix.cool-js.com/images/demo/bg1.png",
+	"https://unix.cool-js.com/images/demo/bg2.png",
+	"https://unix.cool-js.com/images/demo/bg3.png"
+]);
+</script>

@@ -1,0 +1,118 @@
+<template>
+	<cl-page>
+		<Topbar />
+
+		<cl-banner
+			:list="bannerList"
+			:height="400"
+			:pt="{
+				className: '!rounded-none',
+				image: {
+					className: '!rounded-none'
+				}
+			}"
+		/>
+
+		<view class="card dark:!bg-surface-700" id="info">
+			<Info />
+		</view>
+
+		<view class="card !py-1 dark:!bg-surface-700">
+			<view
+				class="row border border-solid border-t-0 border-l-0 border-r-0 border-b-surface-100 dark:border-surface-600"
+			>
+				<cl-icon name="apps-line" :size="16"></cl-icon>
+
+				<view class="flex-1 ml-3">
+					<cl-text>已选：黑色 128GB + 碎屏险</cl-text>
+				</view>
+
+				<cl-icon name="arrow-right-s-line" :size="16"></cl-icon>
+			</view>
+
+			<view
+				class="row !items-start border border-solid border-t-0 border-l-0 border-r-0 border-b-surface-100 dark:border-surface-600"
+			>
+				<cl-icon name="truck-line" :size="16" :pt="{ className: '!mt-1' }"></cl-icon>
+
+				<view class="flex-1 ml-3">
+					<cl-text color="info">预计11月1日 周三 送达</cl-text>
+					<cl-text color="info" :pt="{ className: '!mt-1' }">深圳益田假日广场</cl-text>
+				</view>
+			</view>
+
+			<view class="row">
+				<cl-icon name="shield-check-line" :size="16"></cl-icon>
+
+				<view class="flex-1 ml-3">
+					<cl-text color="info">7天无理由退货 · 正品保证 · 极速发货 · 无忧售后</cl-text>
+				</view>
+			</view>
+		</view>
+
+		<view class="card dark:!bg-surface-700" id="comment">
+			<Comment />
+		</view>
+
+		<view class="card !p-0 dark:!bg-surface-700" id="desc">
+			<Desc />
+		</view>
+
+		<cl-footer>
+			<view class="flex flex-row overflow-visible">
+				<view class="flex flex-row mr-auto overflow-visible">
+					<view class="flex justify-center items-center px-4">
+						<cl-icon name="heart-line" :size="20"></cl-icon>
+						<cl-text :size="12" :pt="{ className: 'mt-1' }">收藏</cl-text>
+					</view>
+
+					<view
+						class="flex justify-center items-center px-4 overflow-visible"
+						@tap="router.to('/pages/template/shop/shopping-cart')"
+					>
+						<cl-icon name="shopping-cart-line" :size="20"></cl-icon>
+						<cl-text :size="12" :pt="{ className: 'mt-1' }">购物车</cl-text>
+
+						<cl-badge
+							type="error"
+							:value="3"
+							position
+							:pt="{ className: '!right-[12px] !top-[-4px] !scale-80' }"
+						></cl-badge>
+					</view>
+				</view>
+
+				<cl-button size="large" text border :pt="{ className: '!w-[120px]' }"
+					>加入购物车</cl-button
+				>
+				<cl-button size="large" :pt="{ className: '!w-[120px]' }">立即购买</cl-button>
+			</view>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { router } from "@/.cool";
+import { ref } from "vue";
+import Comment from "./comment.uvue";
+import Info from "./info.uvue";
+import Desc from "./desc.uvue";
+import Topbar from "./topbar.uvue";
+
+const bannerList = ref<string[]>([
+	"https://unix.cool-js.com/images/demo/goods/banner-1.jpg",
+	"https://unix.cool-js.com/images/demo/goods/banner-2.jpg",
+	"https://unix.cool-js.com/images/demo/goods/banner-3.jpg",
+	"https://unix.cool-js.com/images/demo/goods/banner-4.jpg"
+]);
+</script>
+
+<style lang="scss" scoped>
+.card {
+	@apply p-4 bg-white mb-3;
+
+	.row {
+		@apply flex flex-row items-center py-4;
+	}
+}
+</style>

@@ -1,0 +1,40 @@
+<template>
+	<cl-tabbar :model-value="path" :list="list" @select="onSelect"> </cl-tabbar>
+</template>
+
+<script setup lang="ts">
+import { ctx, getConfig, isDark, router, t } from "@/.cool";
+import type { ClTabbarItem } from "@/uni_modules/cool-ui";
+import { computed } from "vue";
+
+defineOptions({
+	name: "custom-tabbar"
+});
+
+// 当前路径
+const path = computed(() => router.path());
+
+// tabbar 列表
+const list = computed<ClTabbarItem[]>(() => {
+	return (ctx.tabBar.list ?? []).map((e) => {
+		return {
+			icon: e.iconPath,
+			selectedIcon: e.selectedIconPath,
+			value: e.pagePath,
+			text: t(e.text?.replaceAll("%", "")!)
+		} as ClTabbarItem;
+	});
+});
+
+// 选择 tabbar 项
+const onSelect = (item: ClTabbarItem) => {
+	router.to(item.value);
+};
+
+// 隐藏原生 tabBar
+// #ifndef MP
+if (ctx.tabBar.list != null) {
+	uni.hideTabBar();
+}
+// #endif
+</script>

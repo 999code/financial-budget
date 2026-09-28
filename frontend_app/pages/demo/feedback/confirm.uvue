@@ -1,0 +1,94 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<demo-item :label="t('自定义')">
+				<cl-button @tap="openPopup">{{ t("打开弹窗") }}</cl-button>
+			</demo-item>
+
+			<demo-item :label="t('隐藏取消按钮')">
+				<cl-button @tap="openPopup2">{{ t("打开弹窗") }}</cl-button>
+			</demo-item>
+
+			<demo-item :label="t('自定义文本')">
+				<cl-button @tap="openPopup3">{{ t("打开弹窗") }}</cl-button>
+			</demo-item>
+
+			<demo-item :label="t('关闭前钩子')">
+				<cl-button @tap="openPopup4">{{ t("打开弹窗") }}</cl-button>
+			</demo-item>
+
+			<demo-item :label="t('显示时长')">
+				<cl-button @tap="openPopup5">{{ t("打开弹窗") }}</cl-button>
+			</demo-item>
+		</view>
+	</cl-page>
+</template>
+
+<script lang="ts" setup>
+import { t } from "@/.cool";
+import DemoItem from "../components/item.uvue";
+import { useUi } from "@/uni_modules/cool-ui";
+
+const ui = useUi();
+
+function openPopup() {
+	ui.showConfirm({
+		title: t("温馨提示"),
+		message: t("您即将进行一个重要操作，是否确认继续？"),
+		callback(action) {
+			if (action == "confirm") {
+				ui.showToast({
+					message: t("确定")
+				});
+			} else {
+				ui.showToast({
+					message: t("取消")
+				});
+			}
+		}
+	});
+}
+
+function openPopup2() {
+	ui.showConfirm({
+		title: t("温馨提示"),
+		message: t("您即将进行一个重要操作，是否确认继续？"),
+		showCancel: false
+	});
+}
+
+function openPopup3() {
+	ui.showConfirm({
+		title: t("操作确认"),
+		message: t("您确认要执行删除操作吗？删除后将无法恢复。"),
+		cancelText: t("取消"),
+		confirmText: t("下一步")
+	});
+}
+
+function openPopup4() {
+	ui.showConfirm({
+		title: t("温馨提示"),
+		message: t("您即将进行一个重要操作，是否确认继续？"),
+		beforeClose: (action, { close, showLoading, hideLoading }) => {
+			if (action == "confirm") {
+				showLoading();
+
+				setTimeout(() => {
+					close();
+				}, 1000);
+			} else {
+				close();
+			}
+		}
+	});
+}
+
+function openPopup5() {
+	ui.showConfirm({
+		title: t("温馨提示"),
+		message: t("您确定要执行删除操作吗？3秒后自动关闭"),
+		duration: 3000
+	});
+}
+</script>

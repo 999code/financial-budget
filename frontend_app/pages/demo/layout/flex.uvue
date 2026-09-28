@@ -1,0 +1,152 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<demo-item :label="t('基础用法')">
+				<cl-row :gutter="12">
+					<cl-col :span="8">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>1</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="8">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>2</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="8">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>3</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+
+				<cl-row :gutter="12" :pt="{ className: 'mt-3' }">
+					<cl-col :span="12">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>1</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="12">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>2</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+
+				<cl-row :gutter="12" :pt="{ className: 'mt-3' }">
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>1</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>2</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>3</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>4</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+			</demo-item>
+
+			<demo-item :label="t('左间隔')">
+				<cl-row :gutter="12">
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>1</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6" :offset="6">
+						<view class="item active">
+							<cl-text color="white">2</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>3</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+			</demo-item>
+
+			<demo-item :label="t('右移动')">
+				<cl-row :gutter="12">
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>1</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>2</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6" :push="6">
+						<view class="item active">
+							<cl-text color="white">3</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+			</demo-item>
+
+			<demo-item :label="t('左移动')">
+				<cl-row :gutter="12">
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>1</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>2</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6">
+						<view class="item dark:!bg-surface-900">
+							<cl-text>3</cl-text>
+						</view>
+					</cl-col>
+					<cl-col :span="6" :pull="6">
+						<view class="item active">
+							<cl-text color="white">4</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+			</demo-item>
+
+			<demo-item :label="t('多个数据')">
+				<cl-row :gutter="8">
+					<cl-col :span="4" v-for="item in 20" :key="item">
+						<view class="item mb-2 dark:!bg-surface-900">
+							<cl-text>{{ item }}</cl-text>
+						</view>
+					</cl-col>
+				</cl-row>
+			</demo-item>
+		</view>
+	</cl-page>
+</template>
+
+<script lang="ts" setup>
+import { t } from "@/.cool";
+import DemoItem from "../components/item.uvue";
+import { isDark } from "@/.cool";
+</script>
+
+<style lang="scss" scoped>
+.item {
+	@apply h-8 bg-surface-100 rounded-md flex flex-row items-center justify-center;
+
+	&.active {
+		@apply bg-primary-500;
+	}
+}
+</style>

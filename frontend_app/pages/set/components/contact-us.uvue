@@ -1,0 +1,66 @@
+<template>
+	<cl-popup v-model="visible" :title="t('联系我们')">
+		<view class="p-3">
+			<view class="flex flex-row justify-center py-3">
+				<view class="rounded-2xl p-2 border border-solid border-surface-100">
+					<cl-image
+						src="https://unix.cool-js.com/show/wechat.png"
+						:height="150"
+						:width="150"
+						show-menu-by-longpress
+					></cl-image>
+				</view>
+			</view>
+
+			<cl-text :pt="{ className: 'mt-3 mb-6' }"
+				>我们期待与您携手，共同探索技术的边界，共同推动技术的进步</cl-text
+			>
+
+			<view class="flex flex-row">
+				<cl-button size="large" text border fluid @tap="saveImage">保存图片</cl-button>
+
+				<cl-button size="large" fluid @tap="toWebSite">访问官网</cl-button>
+			</view>
+		</view>
+	</cl-popup>
+</template>
+
+<script setup lang="ts">
+import { useUi } from "@/uni_modules/cool-ui";
+import { ref } from "vue";
+import { t } from "@/.cool";
+import { openWeb } from "@/uni_modules/cool-open-web";
+import { config } from "@/config";
+
+const visible = ref(false);
+
+const ui = useUi();
+
+function saveImage() {
+	uni.saveImageToPhotosAlbum({
+		filePath: "https://unix.cool-js.com/show/wechat.png",
+		success: () => {
+			ui.showToast({
+				message: "保存成功"
+			});
+		}
+	});
+}
+
+function toWebSite() {
+	openWeb(config.website);
+}
+
+function open() {
+	visible.value = true;
+}
+
+function close() {
+	visible.value = false;
+}
+
+defineExpose({
+	open,
+	close
+});
+</script>

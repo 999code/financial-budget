@@ -1,0 +1,94 @@
+{
+    "name" : "cool-unix",
+    "appid" : "__UNI__651711F",
+    "description" : "完全开源、永久免费、上手容易、效率极高的开发脚手架",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "uni-app-x" : {},
+    "quickapp" : {},
+    "mp-weixin" : {
+        "darkmode" : true,
+        "appid" : "wxdebc4de0b5584ca4",
+        "setting" : {
+            "urlCheck" : false,
+            "es6" : true
+        },
+        "usingComponents" : true
+    },
+    "mp-alipay" : {
+        "usingComponents" : true
+    },
+    "mp-baidu" : {
+        "usingComponents" : true
+    },
+    "mp-toutiao" : {
+        "usingComponents" : true
+    },
+    "uniStatistics" : {
+        "enable" : false
+    },
+    "vueVersion" : "3",
+    "app" : {
+        "distribute" : {
+            "icons" : {
+                "android" : {
+                    "hdpi" : "",
+                    "xhdpi" : "",
+                    "xxhdpi" : "",
+                    "xxxhdpi" : ""
+                }
+            }
+        }
+    },
+    "web" : {
+        "darkmode" : true,
+        "router" : {
+            "mode" : "",
+            "base" : "./"
+        },
+        "title" : "cool-unix"
+    },
+    "app-harmony" : {
+        "distribute" : {
+            "bundleName" : "cool.unix.demo",
+            "signingConfigs" : {
+                "default" : {
+                    "certpath" : "/Users/icssoa/Library/Application Support/HBuilder X/extensions/launcher/agc-certs/1761881606984.cer",
+                    "keyAlias" : "debugKey",
+                    "keyPassword" : "0000001B6F06517858019F05761FA6ED2A0253C5F0CC9B6A4283D24BA6EA2EDCA6DDED661284493269A46C",
+                    "profile" : "/Users/icssoa/Library/Application Support/HBuilder X/extensions/launcher/agc-certs/1768791750033.p7b",
+                    "signAlg" : "SHA256withECDSA",
+                    "storeFile" : "/Users/icssoa/Library/Application Support/HBuilder X/extensions/launcher/agc-certs/1761881606984.p12",
+                    "storePassword" : "0000001B6F06517858019F05761FA6ED2A0253C5F0CC9B6A4283D24BA6EA2EDCA6DDED661284493269A46C"
+                }
+            },
+            "icons" : {
+                "foreground" : "static/logo2.png",
+                "background" : "static/logo2.png"
+            }
+        }
+    },
+    "app-android" : {
+        "distribute" : {
+            "modules" : {},
+            "icons" : {
+                "hdpi" : "static/logo.png",
+                "xhdpi" : "static/logo.png",
+                "xxhdpi" : "static/logo.png",
+                "xxxhdpi" : "static/logo.png"
+            },
+            "splashScreens" : {
+                "default" : {}
+            }
+        }
+    },
+    "app-ios" : {
+        "distribute" : {
+            "modules" : {},
+            "icons" : {
+                "appstore" : "docs/logo.png"
+            },
+            "splashScreens" : {}
+        }
+    }
+}

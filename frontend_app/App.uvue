@@ -1,0 +1,24 @@
+<script lang="ts">
+import { useStore } from "./.cool";
+
+export default {
+	onLaunch: function () {
+		console.log("App Launch");
+	},
+	onShow: function () {
+		console.log("App Show");
+
+		// 根据业务情况判断是否要预先调用
+		const { user } = useStore();
+
+		// 获取用户信息，未登录不执行
+		user.get();
+	},
+	onHide: function () {
+		console.log("App Hide");
+	},
+	onExit: function () {
+		console.log("App Exit");
+	}
+};
+</script>

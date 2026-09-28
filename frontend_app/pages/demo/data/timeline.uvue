@@ -1,0 +1,71 @@
+<template>
+	<cl-page>
+		<view class="p-3">
+			<demo-item :label="t('基础用法')">
+				<cl-timeline>
+					<cl-timeline-item
+						icon="account-box-line"
+						:title="t('注册账户')"
+						date="2025-01-01"
+						:content="t('新用户立享500元体验金')"
+					>
+					</cl-timeline-item>
+
+					<cl-timeline-item
+						icon="id-card-line"
+						:title="t('实名认证通过')"
+						date="2025-01-02"
+						:content="t('身份认证成功，开启安全保障')"
+					>
+					</cl-timeline-item>
+
+					<cl-timeline-item
+						icon="bank-card-line"
+						:title="t('银行卡绑定完成')"
+						date="2025-01-03"
+						:content="t('成功绑定招商银行储蓄卡，畅享无忧交易')"
+					>
+					</cl-timeline-item>
+
+					<cl-timeline-item
+						icon="money-cny-box-line"
+						:title="t('首次资金充值')"
+						date="2025-01-04"
+						:content="t('充值1000元资金到账，准备投资')"
+					>
+					</cl-timeline-item>
+
+					<cl-timeline-item
+						icon="checkbox-line"
+						:title="t('完成首笔投资')"
+						date="2025-01-05"
+						:hide-line="true"
+					>
+						<view class="flex flex-row mb-3 mt-1">
+							<cl-image src="https://unix.cool-js.com/images/demo/bg1.png"></cl-image>
+
+							<view class="flex-1 px-3">
+								<cl-text>{{ t("优选灵活配置混合A基金") }}</cl-text>
+
+								<cl-text :size="12" color="info" class="mr-5 mt-1">{{
+									t("起投金额1000元")
+								}}</cl-text>
+
+								<view class="flex flex-row mt-2 items-center">
+									<cl-button size="small" type="light">
+										{{ t("立即申购") }}
+									</cl-button>
+								</view>
+							</view>
+						</view>
+					</cl-timeline-item>
+				</cl-timeline>
+			</demo-item>
+		</view>
+	</cl-page>
+</template>
+
+<script lang="ts" setup>
+import { t } from "@/.cool";
+import DemoItem from "../components/item.uvue";
+</script>
