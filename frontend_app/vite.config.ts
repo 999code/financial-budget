@@ -20,7 +20,10 @@ export default defineConfig({
 	],
 
 	server: {
-		port: 9900,
+		// 注意：原端口 9900 落在本机 Windows 保留端口段（netsh 显示 9829-9928 被 Hyper-V/Docker 占用），
+		// 启动会报 EACCES，故改为 5176。
+		host: "127.0.0.1",
+		port: 5176,
 		proxy
 	},
 

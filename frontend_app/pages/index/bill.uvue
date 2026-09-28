@@ -1,0 +1,143 @@
+<template>
+	<cl-page>
+		<cl-topbar
+			title="收支管理"
+			safe-area-top
+			:show-back="false"
+		></cl-topbar>
+
+		<view class="p-4">
+			<!-- 汇总 -->
+			<view
+				class="flex flex-row rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<view class="flex-1">
+					<cl-text :size="12" color="info">月均收入</cl-text>
+					<cl-text :size="17" :pt="{ className: 'font-bold mt-1' }" color="success">
+						{{ money(runway.monthly_income) }}
+					</cl-text>
+				</view>
+
+				<view class="flex-1">
+					<cl-text :size="12" color="info">月均支出</cl-text>
+					<cl-text :size="17" :pt="{ className: 'font-bold mt-1' }" color="error">
+						{{ money(runway.monthly_expense) }}
+					</cl-text>
+				</view>
+			</view>
+
+			<!-- 记录列表 -->
+			<cl-list border title="收支记录" :pt="{ className: 'mt-4' }" v-if="list.length > 0">
+				<cl-list-item
+					v-for="item in list"
+					:key="item.id"
+					:label="item.name ?? '未命名'"
+					hoverable
+				>
+					<view class="flex flex-row items-center">
+						<cl-tag
+							:type="item.category == 'income' ? 'success' : 'error'"
+							:pt="{ className: 'mr-2' }"
+						>
+							{{ item.category == "income" ? "收入" : "支出" }}
+						</cl-tag>
+
+						<cl-text
+							:size="14"
+							:color="item.category == 'income' ? 'success' : 'error'"
+						>
+							{{ money(item.amount) }}
+						</cl-text>
+					</view>
+				</cl-list-item>
+			</cl-list>
+
+			<!-- 空状态 -->
+			<view
+				class="flex flex-row items-center justify-center py-16"
+				v-if="!loading && list.length == 0"
+			>
+				<cl-text color="info" :size="13">暂无收支记录</cl-text>
+			</view>
+
+			<!-- 加载中 -->
+			<view
+				class="flex flex-row items-center justify-center py-10"
+				v-if="loading"
+			>
+				<cl-loading></cl-loading>
+			</view>
+		</view>
+
+		<CustomTabbar></CustomTabbar>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { incomeExpenseApi, summaryApi, type FundRunway } from "@/api";
+import { isLogin } from "@/api/request";
+import { isDark, router } from "@/.cool";
+import { ref } from "vue";
+import CustomTabbar from "./components/tabbar.uvue";
+
+// 列表
+const list = ref<any[]>([]);
+
+// 加载中
+const loading = ref(false);
+
+// 月均
+const runway = ref<FundRunway>({
+	balance: 0,
+	account_count: 0,
+	window_months: 6,
+	horizon_months: 12,
+	monthly_income: 0,
+	monthly_expense: 0,
+	monthly_net_outflow: 0,
+	runway_months: null,
+	depletion_date: null,
+	consumption_ratio: 0,
+	progress: 0,
+	status: "nodata",
+	message: ""
+});
+
+function money(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return "¥0.00";
+	}
+
+	return "¥" + n.toFixed(2);
+}
+
+async function refresh() {
+	if (!isLogin()) {
+		router.login();
+		return;
+	}
+
+	loading.value = true;
+
+	try {
+		const [l, r] = await Promise.all([
+			incomeExpenseApi.list(),
+			summaryApi.fundRunway({ months: 6, horizon: 12 })
+		]);
+
+		list.value = l ?? [];
+		runway.value = r;
+	} catch (e: any) {
+		console.log("加载失败", e);
+	} finally {
+		loading.value = false;
+	}
+}
+
+onShow(() => {
+	refresh();
+});
+</script>

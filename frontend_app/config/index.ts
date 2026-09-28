@@ -10,8 +10,8 @@ export const ignoreTokens: string[] = [];
 
 // 根据环境导出最终配置
 export const config = {
-	name: "Cool Unix",
-	locale: "zh-tw",
+	name: "财务管家",
+	locale: "zh-cn",
 	website: "https://cool-js.com",
 	showDarkButton: isMp() ? false : true,
 	isCustomTabBar: true,

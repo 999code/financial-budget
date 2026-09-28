@@ -1,0 +1,105 @@
+<template>
+	<cl-page>
+		<cl-topbar
+			title="账户管理"
+			safe-area-top
+			:show-back="false"
+		></cl-topbar>
+
+		<view class="p-4">
+			<!-- 总余额 -->
+			<view class="rounded-2xl p-5 bg-primary-500">
+				<cl-text :size="13" :pt="{ className: 'text-white' }">账户总余额</cl-text>
+				<cl-text :size="28" :pt="{ className: 'font-bold text-white mt-2' }">
+					{{ money(total) }}
+				</cl-text>
+			</view>
+
+			<!-- 账户列表 -->
+			<cl-list border title="我的账户" :pt="{ className: 'mt-4' }" v-if="list.length > 0">
+				<cl-list-item
+					v-for="item in list"
+					:key="item.id"
+					:label="item.name ?? '未命名账户'"
+					hoverable
+				>
+					<cl-text :size="15" :pt="{ className: 'font-bold' }">
+						{{ money(item.balance ?? item.initial_balance) }}
+					</cl-text>
+				</cl-list-item>
+			</cl-list>
+
+			<!-- 空状态 -->
+			<view
+				class="flex flex-row items-center justify-center py-16"
+				v-if="!loading && list.length == 0"
+			>
+				<cl-text color="info" :size="13">暂无账户</cl-text>
+			</view>
+
+			<!-- 加载中 -->
+			<view
+				class="flex flex-row items-center justify-center py-10"
+				v-if="loading"
+			>
+				<cl-loading></cl-loading>
+			</view>
+		</view>
+
+		<CustomTabbar></CustomTabbar>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { accountApi } from "@/api";
+import { isLogin } from "@/api/request";
+import { router } from "@/.cool";
+import { computed, ref } from "vue";
+import CustomTabbar from "./components/tabbar.uvue";
+
+const list = ref<any[]>([]);
+const loading = ref(false);
+
+// 总余额
+const total = computed(() => {
+	let sum = 0;
+
+	for (let i = 0; i < list.value.length; i++) {
+		const item = list.value[i];
+		sum += Number(item.balance ?? item.initial_balance ?? 0);
+	}
+
+	return sum;
+});
+
+function money(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return "¥0.00";
+	}
+
+	return "¥" + n.toFixed(2);
+}
+
+async function refresh() {
+	if (!isLogin()) {
+		router.login();
+		return;
+	}
+
+	loading.value = true;
+
+	try {
+		list.value = (await accountApi.list()) ?? [];
+	} catch (e: any) {
+		console.log("加载失败", e);
+	} finally {
+		loading.value = false;
+	}
+}
+
+onShow(() => {
+	refresh();
+});
+</script>

@@ -42,6 +42,29 @@ npm run dev
 ```
 访问：http://localhost:5173 （`/api` 已代理到后端 8000）
 
+### 3. 移动端 H5（无需 HBuilder X）
+
+```bash
+cd frontend_app
+npm install
+npm run dev:h5
+```
+
+默认访问：http://127.0.0.1:5176 。如需用手机在同一局域网内预览：
+
+```bash
+npm run dev:h5 -- --host 0.0.0.0
+```
+
+生产构建与本地预览：
+
+```bash
+npm run build:h5
+npm run preview:h5
+```
+
+H5 构建产物位于 `frontend_app/dist/build/h5/`；开发环境的 `/api` 请求仍由 Vite 代理到后端 `127.0.0.1:8000`。
+
 ## 后续可扩展
 - 数据库迁移（Alembic）、切换到 PostgreSQL/MySQL
 - 图表统计（ECharts）、收支趋势、预算执行率

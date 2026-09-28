@@ -1,40 +1,96 @@
 <template>
-	<cl-tabbar :model-value="path" :list="list" @select="onSelect"> </cl-tabbar>
+	<cl-footer :pt="{ className: barClass, content: { className: 'px-2' } }">
+		<view class="flex flex-row">
+			<view
+				v-for="item in list"
+				:key="item.value"
+				class="flex-1 flex flex-col items-center justify-center py-2"
+				@tap="onSelect(item)"
+			>
+				<cl-icon
+					:name="isActive(item) ? item.activeIcon : item.icon"
+					:size="24"
+					:color="isActive(item) ? 'primary' : 'info'"
+				></cl-icon>
+
+				<cl-text
+					:size="11"
+					:color="isActive(item) ? 'primary' : 'info'"
+					:pt="{ className: 'mt-1' }"
+				>
+					{{ item.text }}
+				</cl-text>
+			</view>
+		</view>
+	</cl-footer>
 </template>
 
 <script setup lang="ts">
-import { ctx, getConfig, isDark, router, t } from "@/.cool";
-import type { ClTabbarItem } from "@/uni_modules/cool-ui";
+import { isDark, router } from "@/.cool";
 import { computed } from "vue";
 
 defineOptions({
 	name: "custom-tabbar"
 });
 
-// 当前路径
-const path = computed(() => router.path());
+type TabItem = {
+	text: string; // 文案
+	value: string; // 页面路径
+	icon: string; // 未选中图标
+	activeIcon: string; // 选中图标
+};
 
-// tabbar 列表
-const list = computed<ClTabbarItem[]>(() => {
-	return (ctx.tabBar.list ?? []).map((e) => {
-		return {
-			icon: e.iconPath,
-			selectedIcon: e.selectedIconPath,
-			value: e.pagePath,
-			text: t(e.text?.replaceAll("%", "")!)
-		} as ClTabbarItem;
-	});
+// tabbar 列表（使用 remixicon 矢量图标，无需图片资源，且自动适配深色模式）
+const list: TabItem[] = [
+	{
+		text: "首页",
+		value: "pages/index/home",
+		icon: "home-line",
+		activeIcon: "home-fill"
+	},
+	{
+		text: "收支",
+		value: "pages/index/bill",
+		icon: "exchange-line",
+		activeIcon: "exchange-fill"
+	},
+	{
+		text: "账户",
+		value: "pages/index/account",
+		icon: "bank-card-line",
+		activeIcon: "bank-card-fill"
+	},
+	{
+		text: "我的",
+		value: "pages/index/my",
+		icon: "user-line",
+		activeIcon: "user-fill"
+	}
+];
+
+// 背景样式（深色模式适配）
+const barClass = computed(() => {
+	return isDark.value
+		? "!bg-surface-900 border-t border-solid !border-surface-700"
+		: "!bg-white border-t border-solid !border-surface-100";
 });
 
-// 选择 tabbar 项
-const onSelect = (item: ClTabbarItem) => {
+// 是否选中
+function isActive(item: TabItem): boolean {
+	return router.path() == item.value;
+}
+
+// 切换
+function onSelect(item: TabItem) {
+	if (isActive(item)) {
+		return;
+	}
+
 	router.to(item.value);
-};
+}
 
 // 隐藏原生 tabBar
 // #ifndef MP
-if (ctx.tabBar.list != null) {
-	uni.hideTabBar();
-}
+uni.hideTabBar();
 // #endif
 </script>

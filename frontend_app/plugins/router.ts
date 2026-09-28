@@ -1,28 +1,28 @@
 import { type PluginConfig } from "@/.cool";
-import { isNull, router, useStore } from "@/.cool";
+import { router } from "@/.cool";
+import { isLogin } from "@/api/request";
 
 export default {
 	install(app) {
 		/**
-		 * 路由跳转前的全局钩子（如修改 pages.json 后需重新编译项目以确保路由信息生效）
-		 * @param to 跳转页
-		 * @param from 当前页
-		 * @param next 跳转函数
+		 * 路由跳转前的全局钩子
+		 * 本项目为财务管理应用，除登录页外所有页面均需登录态。
+		 * （框架默认的 user.isNull() 依赖 /app/user/info/person 接口，本项目后端无此接口，故改为校验本地 token）
 		 */
 		router.beforeEach((to, from, next) => {
-			const { user } = useStore();
-
-			// 判断是否需要登录
-			if (to.isAuth == true || (isNull(to.meta) ? true : to.meta.isAuth == true)) {
-				// 如果用户信息为空，则跳转到登录页
-				if (!user.isNull()) {
-					next();
-				} else {
-					router.login();
-				}
-			} else {
+			// 登录页直接放行，避免重定向死循环
+			if (to.path == "/pages/user/login") {
 				next();
+				return;
 			}
+
+			// 未登录则跳转登录页
+			if (!isLogin()) {
+				router.login();
+				return;
+			}
+
+			next();
 		});
 	}
 } as PluginConfig;

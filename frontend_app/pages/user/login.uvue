@@ -4,76 +4,56 @@
 
 		<view class="px-10">
 			<!-- Logo -->
-			<view class="flex flex-col items-center justify-center py-20">
-				<view class="p-3 bg-white rounded-2xl">
-					<cl-image
-						src="/static/logo.png"
-						mode="widthFix"
-						:width="60"
-						:height="60"
-					></cl-image>
+			<view class="flex flex-col items-center justify-center py-16">
+				<view
+					class="p-3 rounded-2xl"
+					:class="isDark ? '!bg-surface-800' : '!bg-white'"
+				>
+					<cl-icon name="money-cny-box-fill" :size="40" color="primary"></cl-icon>
 				</view>
 
-				<cl-text :size="18" :pt="{ className: 'font-bold mt-4' }">{{
+				<cl-text :size="20" :pt="{ className: 'font-bold mt-4' }">{{
 					config.name
 				}}</cl-text>
-			</view>
 
-			<!-- 手机号登录 -->
-			<login-phone :form="form" @success="toLogin"></login-phone>
-
-			<!-- 微信登录 -->
-			<login-wx :ref="refs.set('loginWx')"></login-wx>
-
-			<!-- 协议 -->
-			<view class="mt-6 flex flex-row flex-wrap items-center justify-center">
-				<cl-checkbox
-					v-model="agree"
-					active-icon="checkbox-circle-fill"
-					inactive-icon="checkbox-blank-circle-line"
-					:pt="{
-						icon: {
-							size: 18
-						}
-					}"
-				>
-				</cl-checkbox>
-				<cl-text color="info" :size="12">{{ t("已阅读并同意") }}</cl-text>
-				<cl-text
-					:size="12"
-					:pt="{
-						className: 'font-bold'
-					}"
-					@tap.stop="toDoc(t('用户协议'), 'userAgreement')"
-				>
-					《{{ t("用户协议") }}》
-				</cl-text>
-				<cl-text color="info" :size="12">、</cl-text>
-				<cl-text
-					:size="12"
-					:pt="{
-						className: 'font-bold'
-					}"
-					@tap.stop="toDoc(t('隐私政策'), 'privacyPolicy')"
-				>
-					《{{ t("隐私政策") }}》
+				<cl-text color="info" :size="12" :pt="{ className: 'mt-2' }">
+					家庭财务预算管理
 				</cl-text>
 			</view>
 
-			<!-- 第三方登录 -->
-			<view class="flex flex-row justify-center mt-10 px-10">
-				<view
-					class="login-item"
-					:class="{
-						'is-dark': isDark
-					}"
-					@tap="refs.callMethod('loginWx', 'login')"
-				>
-					<cl-icon name="wechat-fill" :size="18" color="#00b223"></cl-icon>
-				</view>
+			<!-- 表单 -->
+			<view class="mt-6">
+				<cl-input
+					v-model="form.username"
+					placeholder="请输入用户名"
+					prefix-icon="user-line"
+					border
+					clearable
+					:pt="{ className: 'rounded-lg' }"
+				></cl-input>
 
-				<view class="login-item" :class="{ 'is-dark': isDark }">
-					<cl-icon name="apple-fill" :size="18"></cl-icon>
+				<cl-input
+					v-model="form.password"
+					placeholder="请输入密码"
+					prefix-icon="lock-line"
+					password
+					border
+					clearable
+					:pt="{ className: 'rounded-lg mt-4' }"
+				></cl-input>
+
+				<cl-button
+					type="primary"
+					size="large"
+					:loading="loading"
+					:pt="{ className: 'mt-8 !rounded-lg' }"
+					@tap="toLogin"
+				>
+					登录
+				</cl-button>
+
+				<view class="flex flex-row items-center justify-center mt-6">
+					<cl-text color="info" :size="12">默认账号：admin / 123456</cl-text>
 				</view>
 			</view>
 		</view>
@@ -81,59 +61,62 @@
 </template>
 
 <script setup lang="ts">
+import { authApi } from "@/api";
+import { setToken, setUser } from "@/api/request";
 import { config } from "@/config";
-import { isDark, parse, router, useRefs, useStore, type Token, t } from "@/.cool";
-import { provide, reactive, ref } from "vue";
-import type { LoginForm } from "./types";
+import { isDark, router } from "@/.cool";
 import { useUi } from "@/uni_modules/cool-ui";
-import LoginPhone from "./components/login/phone.uvue";
-import LoginWx from "./components/login/wx.uvue";
+import { reactive, ref } from "vue";
 
-const { user } = useStore();
 const ui = useUi();
-const refs = useRefs();
 
 // 表单
-const form = reactive<LoginForm>({
-	phone: "18000000000",
-	smsCode: "6666"
+const form = reactive<{ username: string; password: string }>({
+	username: "admin",
+	password: "123456"
 });
 
-// 是否同意
-const agree = ref(false);
+// 加载中
+const loading = ref(false);
 
-// 登录成功
-async function toLogin(res: any) {
-	user.setToken(parse<Token>(res)!);
-	user.get();
-	router.nextLogin();
-}
-
-// 跳转文档
-function toDoc(name: string, path: string) {}
-
-// 是否同意
-function isAgree() {
-	if (!agree.value) {
+// 登录
+async function toLogin() {
+	if (form.username == "" || form.password == "") {
 		ui.showToast({
-			message: t("请先阅读并同意《用户协议》和《隐私政策》")
+			message: "请输入用户名和密码"
 		});
 
-		return false;
+		return;
 	}
 
-	return true;
-}
+	if (loading.value) {
+		return;
+	}
 
-provide("isAgree", isAgree);
+	loading.value = true;
+
+	try {
+		const res = await authApi.login({
+			username: form.username,
+			password: form.password
+		});
+
+		// 保存 token 与用户信息
+		setToken(res.access_token);
+		setUser(res.user ?? null);
+
+		ui.showToast({
+			message: "登录成功"
+		});
+
+		// 跳转首页
+		router.home();
+	} catch (e: any) {
+		ui.showToast({
+			message: e?.message ?? "登录失败，请检查账号密码"
+		});
+	} finally {
+		loading.value = false;
+	}
+}
 </script>
-
-<style lang="scss" scoped>
-.login-item {
-	@apply mx-2 p-2 flex items-center justify-center rounded-full bg-white border border-solid border-surface-100;
-
-	&.is-dark {
-		@apply border-surface-600 bg-surface-700;
-	}
-}
-</style>
