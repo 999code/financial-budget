@@ -1,10 +1,12 @@
 <template>
 	<cl-page>
-		<cl-topbar
-			title="收支管理"
-			safe-area-top
-			:show-back="false"
-		></cl-topbar>
+		<cl-topbar title="收支管理" safe-area-top :show-back="false">
+			<template #append>
+				<cl-button text type="primary" size="small" @tap="toCreate">
+					记一笔
+				</cl-button>
+			</template>
+		</cl-topbar>
 
 		<view class="p-4">
 			<!-- 汇总 -->
@@ -14,26 +16,43 @@
 			>
 				<view class="flex-1">
 					<cl-text :size="12" color="info">月均收入</cl-text>
-					<cl-text :size="17" :pt="{ className: 'font-bold mt-1' }" color="success">
+					<cl-text
+						:size="17"
+						:pt="{ className: 'font-bold mt-1' }"
+						color="success"
+					>
 						{{ money(runway.monthly_income) }}
 					</cl-text>
 				</view>
 
 				<view class="flex-1">
 					<cl-text :size="12" color="info">月均支出</cl-text>
-					<cl-text :size="17" :pt="{ className: 'font-bold mt-1' }" color="error">
+					<cl-text
+						:size="17"
+						:pt="{ className: 'font-bold mt-1' }"
+						color="error"
+					>
 						{{ money(runway.monthly_expense) }}
 					</cl-text>
 				</view>
 			</view>
 
+			<!-- 筛选 -->
+			<cl-tabs
+				v-model="tab"
+				:list="tabList"
+				:pt="{ className: 'mt-2' }"
+			></cl-tabs>
+
 			<!-- 记录列表 -->
-			<cl-list border title="收支记录" :pt="{ className: 'mt-4' }" v-if="list.length > 0">
+			<cl-list border v-if="filtered.length > 0" :pt="{ className: 'mt-2' }">
 				<cl-list-item
-					v-for="item in list"
+					v-for="item in filtered"
 					:key="item.id"
 					:label="item.name ?? '未命名'"
+					arrow
 					hoverable
+					@tap="toEdit(item)"
 				>
 					<view class="flex flex-row items-center">
 						<cl-tag
@@ -56,7 +75,7 @@
 			<!-- 空状态 -->
 			<view
 				class="flex flex-row items-center justify-center py-16"
-				v-if="!loading && list.length == 0"
+				v-if="!loading && filtered.length == 0"
 			>
 				<cl-text color="info" :size="13">暂无收支记录</cl-text>
 			</view>
@@ -78,7 +97,8 @@
 import { incomeExpenseApi, summaryApi, type FundRunway } from "@/api";
 import { isLogin } from "@/api/request";
 import { isDark, router } from "@/.cool";
-import { ref } from "vue";
+import type { ClTabsItem } from "@/uni_modules/cool-ui";
+import { computed, ref } from "vue";
 import CustomTabbar from "./components/tabbar.uvue";
 
 // 列表
@@ -86,6 +106,15 @@ const list = ref<any[]>([]);
 
 // 加载中
 const loading = ref(false);
+
+// 当前筛选
+const tab = ref("all");
+
+const tabList = ref<ClTabsItem[]>([
+	{ label: "全部", value: "all" },
+	{ label: "收入", value: "income" },
+	{ label: "支出", value: "expense" }
+]);
 
 // 月均
 const runway = ref<FundRunway>({
@@ -104,6 +133,15 @@ const runway = ref<FundRunway>({
 	message: ""
 });
 
+// 过滤后的列表
+const filtered = computed(() => {
+	if (tab.value == "all") {
+		return list.value;
+	}
+
+	return list.value.filter((e) => e.category == tab.value);
+});
+
 function money(v: any): string {
 	const n = Number(v ?? 0);
 
@@ -112,6 +150,16 @@ function money(v: any): string {
 	}
 
 	return "¥" + n.toFixed(2);
+}
+
+// 新增
+function toCreate() {
+	router.push({ path: "/pages/bill/form" });
+}
+
+// 编辑
+function toEdit(item: any) {
+	router.push({ path: "/pages/bill/form", query: { id: item.id } });
 }
 
 async function refresh() {

@@ -27,6 +27,17 @@
 	],
 	"subPackages": [
 		{
+			"root": "pages/bill",
+			"pages": [
+				{
+					"path": "form",
+					"style": {
+						"navigationStyle": "custom"
+					}
+				}
+			]
+		},
+		{
 			"root": "pages/user",
 			"pages": [
 				{
@@ -34,6 +45,12 @@
 					"style": {
 						"navigationStyle": "custom",
 						"disableScroll": true
+					}
+				},
+				{
+					"path": "info",
+					"style": {
+						"navigationStyle": "custom"
 					}
 				}
 			]
@@ -140,6 +157,57 @@
 					"path": "feedback/toast",
 					"style": {
 						"navigationBarTitleText": "Toast 提示框"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/account",
+			"pages": [
+				{
+					"path": "form",
+					"style": {
+						"navigationStyle": "custom"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/loan",
+			"pages": [
+				{
+					"path": "index",
+					"style": {
+						"navigationStyle": "custom"
+					}
+				},
+				{
+					"path": "form",
+					"style": {
+						"navigationStyle": "custom"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/pension",
+			"pages": [
+				{
+					"path": "index",
+					"style": {
+						"navigationStyle": "custom"
+					}
+				},
+				{
+					"path": "record-form",
+					"style": {
+						"navigationStyle": "custom"
+					}
+				},
+				{
+					"path": "person-form",
+					"style": {
+						"navigationStyle": "custom"
 					}
 				}
 			]

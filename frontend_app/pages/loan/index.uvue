@@ -1,0 +1,204 @@
+<template>
+	<cl-page>
+		<cl-topbar title="贷款管理" safe-area-top>
+			<template #append>
+				<cl-button text type="primary" size="small" @tap="toCreate">
+					新增
+				</cl-button>
+			</template>
+		</cl-topbar>
+
+		<view class="p-4">
+			<!-- 汇总 -->
+			<view
+				class="flex flex-row rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<view class="flex-1">
+					<cl-text :size="12" color="info">贷款总额</cl-text>
+					<cl-text
+						:size="17"
+						:pt="{ className: 'font-bold mt-1' }"
+						color="error"
+					>
+						{{ money(totalLoan) }}
+					</cl-text>
+				</view>
+
+				<view class="flex-1">
+					<cl-text :size="12" color="info">月供合计</cl-text>
+					<cl-text
+						:size="17"
+						:pt="{ className: 'font-bold mt-1' }"
+						color="warn"
+					>
+						{{ money(totalMonthly) }}
+					</cl-text>
+				</view>
+			</view>
+
+			<!-- 贷款列表 -->
+			<view
+				v-for="item in list"
+				:key="item.id"
+				class="rounded-2xl p-4 mt-3"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+				@tap="toEdit(item)"
+			>
+				<view class="flex flex-row items-center">
+					<cl-text :size="16" :pt="{ className: 'font-bold flex-1' }">
+						{{ item.name ?? '未命名' }}
+					</cl-text>
+
+					<cl-text :size="18" color="error" :pt="{ className: 'font-bold' }">
+						{{ money(item.monthly_payment) }}
+					</cl-text>
+				</view>
+
+				<cl-text :size="12" color="info" :pt="{ className: 'mt-1' }">
+					月供 · {{ methodText(item.repayment_method) }}
+				</cl-text>
+
+				<view class="flex flex-row mt-3">
+					<view class="flex-1">
+						<cl-text :size="11" color="info">贷款金额</cl-text>
+						<cl-text :size="13">{{ money(item.loan_amount) }}</cl-text>
+					</view>
+
+					<view class="flex-1">
+						<cl-text :size="11" color="info">年利率</cl-text>
+						<cl-text :size="13">{{ rateText(item.annual_rate) }}</cl-text>
+					</view>
+
+					<view class="flex-1">
+						<cl-text :size="11" color="info">期限</cl-text>
+						<cl-text :size="13">{{ yearsText(item.years) }}</cl-text>
+					</view>
+				</view>
+
+				<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
+					{{ dateText(item.start_date) }} 至 {{ dateText(item.end_date) }}
+				</cl-text>
+
+				<cl-text
+					:size="11"
+					color="info"
+					:pt="{ className: 'mt-1' }"
+					v-if="item.repayment_method == 'equal_principal'"
+				>
+					等额本金：末月 {{ money(item.last_month_payment) }}，逐月递减
+				</cl-text>
+			</view>
+
+			<!-- 空状态 -->
+			<view
+				class="flex flex-row items-center justify-center py-16"
+				v-if="!loading && list.length == 0"
+			>
+				<cl-text color="info" :size="13">暂无贷款记录</cl-text>
+			</view>
+
+			<!-- 加载中 -->
+			<view
+				class="flex flex-row items-center justify-center py-10"
+				v-if="loading"
+			>
+				<cl-loading></cl-loading>
+			</view>
+		</view>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { loanApi } from "@/api";
+import { isLogin } from "@/api/request";
+import { isDark, router } from "@/.cool";
+import { computed, ref } from "vue";
+
+// 列表
+const list = ref<any[]>([]);
+
+// 加载中
+const loading = ref(false);
+
+function money(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return "¥0.00";
+	}
+
+	return "¥" + n.toFixed(2);
+}
+
+function methodText(v: string): string {
+	return v == "equal_principal" ? "等额本金" : "等额本息";
+}
+
+function rateText(v: any): string {
+	return Number(v ?? 0).toFixed(2) + "%";
+}
+
+function yearsText(v: any): string {
+	const n = Number(v ?? 0);
+	return n > 0 ? n + " 年（" + Math.round(n * 12) + " 期）" : "-";
+}
+
+function dateText(v: any): string {
+	const s = String(v ?? "");
+	return s.length >= 10 ? s.slice(0, 10) : "-";
+}
+
+// 贷款总额
+const totalLoan = computed(() => {
+	let sum = 0;
+
+	for (let i = 0; i < list.value.length; i++) {
+		sum += Number(list.value[i].loan_amount ?? 0);
+	}
+
+	return sum;
+});
+
+// 月供合计
+const totalMonthly = computed(() => {
+	let sum = 0;
+
+	for (let i = 0; i < list.value.length; i++) {
+		sum += Number(list.value[i].monthly_payment ?? 0);
+	}
+
+	return sum;
+});
+
+// 新增
+function toCreate() {
+	router.push({ path: "/pages/loan/form" });
+}
+
+// 编辑
+function toEdit(item: any) {
+	router.push({ path: "/pages/loan/form", query: { id: item.id } });
+}
+
+async function refresh() {
+	if (!isLogin()) {
+		router.login();
+		return;
+	}
+
+	loading.value = true;
+
+	try {
+		list.value = (await loanApi.list()) ?? [];
+	} catch (e: any) {
+		console.log("贷款加载失败", e);
+	} finally {
+		loading.value = false;
+	}
+}
+
+onShow(() => {
+	refresh();
+});
+</script>

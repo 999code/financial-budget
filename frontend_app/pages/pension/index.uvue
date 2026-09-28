@@ -1,0 +1,709 @@
+<template>
+	<cl-page>
+		<cl-topbar title="养老金管理" safe-area-top>
+			<template #append>
+				<cl-button
+					v-if="tab != 'params'"
+					text
+					type="primary"
+					size="small"
+					@tap="onCreate"
+				>
+					{{ tab == 'person' ? '新增人员' : '记一笔' }}
+				</cl-button>
+			</template>
+		</cl-topbar>
+
+		<view class="p-4">
+			<cl-tabs v-model="tab" :list="tabList"></cl-tabs>
+
+			<!-- ============ 月度记录 ============ -->
+			<template v-if="tab == 'record'">
+				<view
+					class="flex flex-row rounded-2xl p-4 mt-3"
+					:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+				>
+					<view class="flex-1">
+						<cl-text :size="12" color="info">领取合计</cl-text>
+						<cl-text
+							:size="16"
+							:pt="{ className: 'font-bold mt-1' }"
+							color="success"
+						>
+							{{ money(stats.income_total) }}
+						</cl-text>
+					</view>
+
+					<view class="flex-1">
+						<cl-text :size="12" color="info">缴费合计</cl-text>
+						<cl-text
+							:size="16"
+							:pt="{ className: 'font-bold mt-1' }"
+							color="error"
+						>
+							{{ money(stats.expense_total) }}
+						</cl-text>
+					</view>
+
+					<view class="flex-1">
+						<cl-text :size="12" color="info">净额</cl-text>
+						<cl-text :size="16" :pt="{ className: 'font-bold mt-1' }">
+							{{ money(stats.net) }}
+						</cl-text>
+					</view>
+				</view>
+
+				<view
+					v-for="item in list"
+					:key="item.id"
+					class="rounded-2xl p-4 mt-3"
+					:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+					@tap="toEdit(item)"
+				>
+					<view class="flex flex-row items-center">
+						<cl-text :size="15" :pt="{ className: 'font-bold flex-1' }">
+							{{ item.person_name }}
+						</cl-text>
+
+						<cl-text
+							:size="17"
+							:color="item.direction == 'income' ? 'success' : 'error'"
+							:pt="{ className: 'font-bold' }"
+						>
+							{{ item.direction == 'income' ? '+' : '-' }}{{ money(item.amount) }}
+						</cl-text>
+					</view>
+
+					<view class="flex flex-row items-center mt-2">
+						<cl-tag :pt="{ className: 'mr-2' }">
+							{{ item.scheme_text ?? item.scheme }}
+						</cl-tag>
+
+						<cl-tag
+							:type="item.direction == 'income' ? 'success' : 'error'"
+							:pt="{ className: 'mr-2' }"
+						>
+							{{ item.direction_text ?? (item.direction == 'income' ? '领取' : '缴费') }}
+						</cl-tag>
+
+						<cl-text :size="12" color="info">
+							{{ item.period_month }}
+						</cl-text>
+
+						<cl-text
+							:size="11"
+							color="primary"
+							:pt="{ className: 'ml-2' }"
+							v-if="item.synced_income_expense_id != null"
+						>
+							已同步收支
+						</cl-text>
+					</view>
+
+					<cl-text
+						:size="11"
+						color="info"
+						:pt="{ className: 'mt-2' }"
+						v-if="item.note != null && item.note != ''"
+					>
+						{{ item.note }}
+					</cl-text>
+				</view>
+
+				<view
+					class="flex flex-row items-center justify-center py-16"
+					v-if="!loading && list.length == 0"
+				>
+					<cl-text color="info" :size="13">暂无养老金记录</cl-text>
+				</view>
+			</template>
+
+			<!-- ============ 人员档案 ============ -->
+			<template v-if="tab == 'person'">
+				<view
+					v-for="item in persons"
+					:key="item.id"
+					class="rounded-2xl p-4 mt-3"
+					:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+					@tap="toEditPerson(item)"
+				>
+					<view class="flex flex-row items-center">
+						<cl-text :size="16" :pt="{ className: 'font-bold flex-1' }">
+							{{ item.name }}
+						</cl-text>
+
+						<cl-tag>{{ item.scheme_text ?? item.scheme }}</cl-tag>
+					</view>
+
+					<view class="flex flex-row mt-3">
+						<view class="flex-1">
+							<cl-text :size="11" color="info">缴费年限</cl-text>
+							<cl-text :size="13">
+								{{ yearsText(item.contribution_years) }}
+							</cl-text>
+						</view>
+
+						<view class="flex-1">
+							<cl-text :size="11" color="info">个人账户储存额</cl-text>
+							<cl-text :size="13">
+								{{ money(item.personal_account_balance) }}
+							</cl-text>
+						</view>
+
+						<view class="flex-1">
+							<cl-text :size="11" color="info">
+								{{ item.scheme == 'resident' ? '年缴费档次' : '月工资' }}
+							</cl-text>
+							<cl-text :size="13">{{ money(item.salary) }}</cl-text>
+						</view>
+					</view>
+
+					<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
+						{{ personSummary(item) }}
+					</cl-text>
+				</view>
+
+				<view
+					class="flex flex-row items-center justify-center py-16"
+					v-if="!loading && persons.length == 0"
+				>
+					<cl-text color="info" :size="13">暂无人员档案，请先添加</cl-text>
+				</view>
+			</template>
+
+			<!-- ============ 参数设置 ============ -->
+			<template v-if="tab == 'params'">
+				<view
+					class="rounded-2xl p-4 mt-3"
+					:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+				>
+					<cl-text :size="14" :pt="{ className: 'font-bold' }">
+						参保地区
+					</cl-text>
+					<view class="mt-2">
+						<cl-select
+							v-model="params.region"
+							:options="regionOptions"
+							title="选择参保地区"
+							placeholder="未选择"
+						></cl-select>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						计发基数（元/月）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.base_number"
+							type="digit"
+							placeholder="8000"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						本人平均缴费指数
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.avg_index"
+							type="digit"
+							placeholder="0.6"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						缴费基数下限（倍）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.base_floor"
+							type="digit"
+							placeholder="0.6"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						缴费基数上限（倍）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.base_cap"
+							type="digit"
+							placeholder="3.0"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+				</view>
+
+				<view
+					class="rounded-2xl p-4 mt-3"
+					:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+				>
+					<cl-text :size="14" :pt="{ className: 'font-bold' }">
+						个人账户记账利率（%）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.book_rate"
+							type="digit"
+							placeholder="1.5"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						缴费基数年增长率（%）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.wage_growth"
+							type="digit"
+							placeholder="6.0"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						个人缴费费率（%）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.personal_rate"
+							type="digit"
+							placeholder="8"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						单位缴费费率（%）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.company_rate"
+							type="digit"
+							placeholder="16"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<view class="flex flex-row items-center mt-4">
+						<cl-text :size="14" :pt="{ className: 'flex-1' }">
+							单位缴纳计入缴费
+						</cl-text>
+						<cl-switch v-model="params.include_company"></cl-switch>
+					</view>
+				</view>
+
+				<view
+					class="rounded-2xl p-4 mt-3"
+					:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+				>
+					<cl-text :size="14" :pt="{ className: 'font-bold' }">
+						过渡性养老金系数
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.transition_coef"
+							type="digit"
+							placeholder="1.3"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						过渡性口径
+					</cl-text>
+					<view class="mt-2">
+						<cl-select
+							v-model="params.transition_formula"
+							:options="formulaOptions"
+							title="选择过渡性口径"
+						></cl-select>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						退休后年调整比例（%）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.adjust_rate"
+							type="digit"
+							placeholder="2.0"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						居民基础养老金（元/月）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.resident_base"
+							type="digit"
+							placeholder="163"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="14" :pt="{ className: 'font-bold mt-4' }">
+						居民计发月数
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="params.resident_divisor"
+							type="digit"
+							placeholder="139"
+							border
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+				</view>
+
+				<cl-button
+					type="primary"
+					size="large"
+					:loading="saving"
+					:pt="{ className: 'mt-4 !rounded-lg' }"
+					@tap="onSaveParams"
+				>
+					保存参数
+				</cl-button>
+
+				<cl-button
+					size="large"
+					:pt="{ className: 'mt-3 !rounded-lg' }"
+					@tap="onResetParams"
+				>
+					恢复政策默认值
+				</cl-button>
+
+				<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
+					参数参与所有人员的养老金测算，修改后已有记录需重新编辑才会按新参数重算
+				</cl-text>
+			</template>
+
+			<!-- 加载中 -->
+			<view
+				class="flex flex-row items-center justify-center py-10"
+				v-if="loading"
+			>
+				<cl-loading></cl-loading>
+			</view>
+		</view>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { pensionApi, pensionParamsApi, pensionPersonApi } from "@/api";
+import { isLogin } from "@/api/request";
+import { isDark, router } from "@/.cool";
+import type { ClSelectOption, ClTabsItem } from "@/uni_modules/cool-ui";
+import { useUi } from "@/uni_modules/cool-ui";
+import { ref } from "vue";
+
+const ui = useUi();
+
+// 当前 tab
+const tab = ref("record");
+
+const tabList = ref<ClTabsItem[]>([
+	{ label: "月度记录", value: "record" },
+	{ label: "人员档案", value: "person" },
+	{ label: "参数设置", value: "params" }
+]);
+
+// 记录
+const list = ref<any[]>([]);
+
+// 人员
+const persons = ref<any[]>([]);
+
+// 统计
+const stats = ref<any>({
+	income_total: 0,
+	expense_total: 0,
+	net: 0,
+	count: 0
+});
+
+// 加载中
+const loading = ref(false);
+
+// 保存中
+const saving = ref(false);
+
+// 参数表单
+const params = ref<any>({
+	region: "",
+	base_number: "8000",
+	avg_index: "0.6",
+	base_floor: "0.6",
+	base_cap: "3",
+	book_rate: "1.5",
+	wage_growth: "6",
+	personal_rate: "8",
+	company_rate: "16",
+	include_company: false,
+	transition_coef: "1.3",
+	transition_formula: "sichuan",
+	adjust_rate: "2",
+	resident_base: "163",
+	resident_divisor: "139"
+});
+
+// 地区
+const regionOptions = ref<ClSelectOption[]>([{ label: "未选择", value: "" }]);
+
+// 过渡性口径
+const formulaOptions = ref<ClSelectOption[]>([
+	{ label: "四川口径（用平均缴费指数）", value: "sichuan" },
+	{ label: "广东口径（用视同缴费指数）", value: "guangdong" }
+]);
+
+function money(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return "¥0.00";
+	}
+
+	return "¥" + n.toFixed(2);
+}
+
+/**
+ * 数字净化
+ * UTS 的 number 是 32 位浮点，后端 0.6 取回来会变成 0.6000000238418579，
+ * 直接提交会把脏值写进数据库，这里先按 6 位小数取整还原
+ */
+function round6(v: any): number {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return 0;
+	}
+
+	return Math.round(n * 1000000) / 1000000;
+}
+
+/** 数字转字符串，去掉浮点尾数（0.6000000238418579 → "0.6"） */
+function numText(v: any): string {
+	const n = round6(v);
+
+	if (n == Math.floor(n)) {
+		return String(Math.round(n));
+	}
+
+	let s = n.toFixed(4);
+	let i = s.length - 1;
+
+	while (i > 0 && s.charAt(i) == "0") {
+		i = i - 1;
+	}
+
+	if (s.charAt(i) == ".") {
+		i = i - 1;
+	}
+
+	return s.substring(0, i + 1);
+}
+
+function yearsText(v: any): string {
+	const n = Number(v ?? 0);
+	return n > 0 ? n + " 年" : "-";
+}
+
+// 人员档案摘要
+function personSummary(item: any): string {
+	const parts: string[] = [];
+
+	if (item.birth_date != null && item.birth_date != "") {
+		parts.push("出生 " + String(item.birth_date).slice(0, 10));
+	}
+
+	if (item.retire_date != null && item.retire_date != "") {
+		parts.push("退休 " + String(item.retire_date).slice(0, 10));
+	} else if (item.legal_retire_date != null && item.legal_retire_date != "") {
+		parts.push("法定退休 " + String(item.legal_retire_date).slice(0, 10));
+	}
+
+	if (item.legal_retire_age != null) {
+		parts.push("法定年龄 " + Number(item.legal_retire_age).toFixed(1) + " 岁");
+	}
+
+	if (parts.length == 0) {
+		return "未填写出生日期";
+	}
+
+	let text = "";
+
+	for (let i = 0; i < parts.length; i++) {
+		text += (i == 0 ? "" : " · ") + parts[i];
+	}
+
+	return text;
+}
+
+// 新增
+function onCreate() {
+	if (tab.value == "person") {
+		router.push({ path: "/pages/pension/person-form" });
+	} else {
+		router.push({ path: "/pages/pension/record-form" });
+	}
+}
+
+// 编辑记录
+function toEdit(item: any) {
+	router.push({ path: "/pages/pension/record-form", query: { id: item.id } });
+}
+
+// 编辑人员
+function toEditPerson(item: any) {
+	router.push({ path: "/pages/pension/person-form", query: { id: item.id } });
+}
+
+// 加载地区
+async function loadRegions() {
+	try {
+		const list = (await pensionParamsApi.regions()) ?? [];
+
+		const options: ClSelectOption[] = [{ label: "未选择", value: "" }];
+
+		for (let i = 0; i < list.length; i++) {
+			options.push({
+				label: list[i].name + "（" + Number(list[i].base_number).toFixed(0) + "）",
+				value: list[i].name
+			} as ClSelectOption);
+		}
+
+		regionOptions.value = options;
+	} catch (e: any) {
+		console.log("地区加载失败", e);
+	}
+}
+
+// 加载参数
+async function loadParams() {
+	try {
+		const d = await pensionParamsApi.get();
+
+		params.value.region = d.region ?? "";
+		params.value.base_number = numText(d.base_number ?? 8000);
+		params.value.avg_index = numText(d.avg_index ?? 0.6);
+		params.value.base_floor = numText(d.base_floor ?? 0.6);
+		params.value.base_cap = numText(d.base_cap ?? 3);
+		params.value.book_rate = numText(d.book_rate ?? 1.5);
+		params.value.wage_growth = numText(d.wage_growth ?? 6);
+		params.value.personal_rate = numText(d.personal_rate ?? 8);
+		params.value.company_rate = numText(d.company_rate ?? 16);
+		params.value.include_company = d.include_company == true;
+		params.value.transition_coef = numText(d.transition_coef ?? 1.3);
+		params.value.transition_formula = d.transition_formula ?? "sichuan";
+		params.value.adjust_rate = numText(d.adjust_rate ?? 2);
+		params.value.resident_base = numText(d.resident_base ?? 163);
+		params.value.resident_divisor = numText(d.resident_divisor ?? 139);
+	} catch (e: any) {
+		console.log("参数加载失败", e);
+	}
+}
+
+// 保存参数
+async function onSaveParams() {
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	const payload = {
+		region: params.value.region != "" ? params.value.region : null,
+		base_number: round6(params.value.base_number),
+		avg_index: round6(params.value.avg_index),
+		base_floor: round6(params.value.base_floor),
+		base_cap: round6(params.value.base_cap),
+		book_rate: round6(params.value.book_rate),
+		wage_growth: round6(params.value.wage_growth),
+		personal_rate: round6(params.value.personal_rate),
+		company_rate: round6(params.value.company_rate),
+		include_company: params.value.include_company,
+		transition_coef: round6(params.value.transition_coef),
+		transition_formula: params.value.transition_formula,
+		adjust_rate: round6(params.value.adjust_rate),
+		resident_base: round6(params.value.resident_base),
+		resident_divisor: round6(params.value.resident_divisor)
+	};
+
+	try {
+		await pensionParamsApi.update(payload);
+		ui.showToast({ message: "参数已保存" });
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+// 恢复默认
+function onResetParams() {
+	ui.showConfirm({
+		title: "提示",
+		message: "确定把参数恢复为当前政策默认值吗？",
+		callback(action: string) {
+			if (action != "confirm") {
+				return;
+			}
+
+			pensionParamsApi
+				.reset()
+				.then(() => {
+					ui.showToast({ message: "已恢复默认" });
+					loadParams();
+				})
+				.catch((e: any) => {
+					ui.showToast({ message: e?.message ?? "恢复失败" });
+				});
+		}
+	});
+}
+
+async function refresh() {
+	if (!isLogin()) {
+		router.login();
+		return;
+	}
+
+	loading.value = true;
+
+	try {
+		// 逐条请求：uvue 下 Promise.all 的元组推断只验证过两元，这里避免踩坑
+		list.value = (await pensionApi.list()) ?? [];
+		stats.value = (await pensionApi.stats()) ?? stats.value;
+		persons.value = (await pensionPersonApi.list()) ?? [];
+	} catch (e: any) {
+		console.log("养老金加载失败", e);
+	} finally {
+		loading.value = false;
+	}
+}
+
+onShow(() => {
+	refresh();
+	loadRegions();
+	loadParams();
+});
+</script>

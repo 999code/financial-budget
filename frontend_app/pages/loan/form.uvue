@@ -1,0 +1,449 @@
+<template>
+	<cl-page>
+		<cl-topbar :title="isEdit ? '编辑贷款' : '新增贷款'" safe-area-top></cl-topbar>
+
+		<view class="p-4">
+			<!-- 表单 -->
+			<view
+				class="rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">贷款名称</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.name"
+						placeholder="如：房贷、车贷"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					总价（元）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.total_price"
+						type="digit"
+						placeholder="0.00"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					首付款（元）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.principal"
+						type="digit"
+						placeholder="0.00"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					年利率（%）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.annual_rate"
+						type="digit"
+						placeholder="如：3.1"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					贷款年限（年）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.years"
+						type="digit"
+						placeholder="如：30"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					还款方式
+				</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.repayment_method"
+						:options="methodOptions"
+						title="选择还款方式"
+					></cl-select>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					首次还款日期
+				</cl-text>
+				<view class="mt-2">
+					<cl-select-date
+						v-model="form.start_date"
+						type="date"
+						value-format="YYYY-MM-DD"
+						label-format="YYYY-MM-DD"
+						placeholder="请选择日期"
+					></cl-select-date>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					备注（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-textarea
+						v-model="form.note"
+						placeholder="补充说明"
+						border
+						:pt="{ className: 'rounded-lg' }"
+					></cl-textarea>
+				</view>
+			</view>
+
+			<!-- 试算结果 -->
+			<view
+				class="rounded-2xl p-4 mt-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<view class="flex flex-row items-center">
+					<cl-text :size="13" color="info">贷款金额（总价 - 首付）</cl-text>
+				</view>
+				<cl-text
+					:size="22"
+					color="error"
+					:pt="{ className: 'font-bold mt-1' }"
+				>
+					{{ money(loanAmount) }}
+				</cl-text>
+
+				<view class="flex flex-row mt-4">
+					<view class="flex-1">
+						<cl-text :size="12" color="info">
+							{{ isEqualPrincipal ? '首月月供' : '每月月供' }}
+						</cl-text>
+						<cl-text
+							:size="16"
+							:pt="{ className: 'font-bold mt-1' }"
+							color="warn"
+						>
+							{{ money(firstPayment) }}
+						</cl-text>
+					</view>
+
+					<view class="flex-1" v-if="isEqualPrincipal">
+						<cl-text :size="12" color="info">末月月供</cl-text>
+						<cl-text
+							:size="16"
+							:pt="{ className: 'font-bold mt-1' }"
+							color="warn"
+						>
+							{{ money(lastPayment) }}
+						</cl-text>
+					</view>
+
+					<view class="flex-1">
+						<cl-text :size="12" color="info">还款期数</cl-text>
+						<cl-text :size="16" :pt="{ className: 'font-bold mt-1' }">
+							{{ months }} 期
+						</cl-text>
+					</view>
+				</view>
+
+				<cl-text :size="11" color="info" :pt="{ className: 'mt-3' }">
+					保存后会自动在收支管理中生成一条月供固定支出
+				</cl-text>
+			</view>
+
+			<!-- 删除 -->
+			<cl-button
+				v-if="isEdit"
+				type="error"
+				size="large"
+				:pt="{ className: 'mt-6 !rounded-lg' }"
+				@tap="onRemove"
+			>
+				删除该贷款
+			</cl-button>
+		</view>
+
+		<cl-footer>
+			<cl-button
+				type="primary"
+				size="large"
+				:loading="saving"
+				:pt="{ className: '!rounded-lg' }"
+				@tap="onSave"
+			>
+				保存
+			</cl-button>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { loanApi } from "@/api";
+import { isDark, router } from "@/.cool";
+import type { ClSelectOption } from "@/uni_modules/cool-ui";
+import { useUi } from "@/uni_modules/cool-ui";
+import { computed, ref } from "vue";
+
+const ui = useUi();
+
+// 今天
+function today(): string {
+	const d = new Date();
+	const m = d.getMonth() + 1;
+	const day = d.getDate();
+
+	return `${d.getFullYear()}-${m < 10 ? "0" + m : m}-${day < 10 ? "0" + day : day}`;
+}
+
+// 表单
+const form = ref({
+	name: "",
+	total_price: "",
+	principal: "",
+	annual_rate: "",
+	years: "",
+	repayment_method: "equal_installment",
+	start_date: today(),
+	note: ""
+});
+
+// 是否编辑
+const id = ref<number | null>(null);
+const isEdit = computed(() => id.value != null);
+
+const saving = ref(false);
+
+// 还款方式
+const methodOptions = ref<ClSelectOption[]>([
+	{ label: "等额本息（每月固定）", value: "equal_installment" },
+	{ label: "等额本金（逐月递减）", value: "equal_principal" }
+]);
+
+const isEqualPrincipal = computed(() => form.value.repayment_method == "equal_principal");
+
+function num(v: any): number {
+	const n = Number(v);
+	return isNaN(n) ? 0 : n;
+}
+
+function money(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return "¥0.00";
+	}
+
+	return "¥" + n.toFixed(2);
+}
+
+/** 数字净化：UTS 是 32 位浮点，2.8 会变成 2.799999952316284，提交前先还原 */
+function round6(v: any): number {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return 0;
+	}
+
+	return Math.round(n * 1000000) / 1000000;
+}
+
+/** 数字转字符串，去掉浮点尾数 */
+function numText(v: any): string {
+	const n = round6(v);
+
+	if (n == Math.floor(n)) {
+		return String(Math.round(n));
+	}
+
+	let s = n.toFixed(4);
+	let i = s.length - 1;
+
+	while (i > 0 && s.charAt(i) == "0") {
+		i = i - 1;
+	}
+
+	if (s.charAt(i) == ".") {
+		i = i - 1;
+	}
+
+	return s.substring(0, i + 1);
+}
+
+// 贷款金额 = 总价 - 首付（与后端口径一致）
+const loanAmount = computed(() => {
+	return Math.max(num(form.value.total_price) - num(form.value.principal), 0);
+});
+
+// 期数
+const months = computed(() => {
+	return Math.round(num(form.value.years) * 12);
+});
+
+/**
+ * 月供计算，公式与后端 models/loan.py 保持一致
+ * 等额本息：每月固定；等额本金：本金固定、利息递减
+ */
+const payments = computed(() => {
+	const amount = loanAmount.value;
+	const n = months.value;
+
+	if (n <= 0 || amount <= 0) {
+		return { first: 0, last: 0 };
+	}
+
+	const monthlyRate = num(form.value.annual_rate) / 100 / 12;
+
+	// 免息：直接按本金摊到每期
+	if (monthlyRate <= 0) {
+		const per = amount / n;
+		return { first: per, last: per };
+	}
+
+	if (isEqualPrincipal.value) {
+		const perPrincipal = amount / n;
+		const first = perPrincipal + amount * monthlyRate;
+		const last =
+			perPrincipal + (amount - perPrincipal * (n - 1)) * monthlyRate;
+
+		return { first: first, last: Math.max(last, 0) };
+	}
+
+	const factor = Math.pow(1 + monthlyRate, n);
+	const monthly = (amount * monthlyRate * factor) / (factor - 1);
+
+	return { first: monthly, last: monthly };
+});
+
+const firstPayment = computed(() => payments.value.first);
+const lastPayment = computed(() => payments.value.last);
+
+// 加载详情
+async function loadDetail() {
+	try {
+		const d = await loanApi.detail(id.value!);
+
+		form.value.name = d.name ?? "";
+		form.value.total_price = numText(d.total_price ?? 0);
+		form.value.principal = numText(d.principal ?? 0);
+		form.value.annual_rate = numText(d.annual_rate ?? 0);
+		form.value.years = numText(d.years ?? 0);
+		form.value.repayment_method = d.repayment_method ?? "equal_installment";
+		form.value.start_date = (d.start_date ?? "").slice(0, 10);
+		form.value.note = d.note ?? "";
+	} catch (e: any) {
+		console.log("详情加载失败", e);
+	}
+}
+
+// 保存
+async function onSave() {
+	if (form.value.name == "") {
+		ui.showToast({ message: "请输入贷款名称" });
+		return;
+	}
+
+	const total = round6(form.value.total_price);
+	const principal = round6(form.value.principal);
+	const years = round6(form.value.years);
+	const rate = round6(form.value.annual_rate);
+
+	if (total <= 0) {
+		ui.showToast({ message: "总价必须大于 0" });
+		return;
+	}
+
+	if (total - principal <= 0) {
+		ui.showToast({ message: "贷款金额必须大于 0，请检查首付" });
+		return;
+	}
+
+	if (years <= 0) {
+		ui.showToast({ message: "贷款年限必须大于 0" });
+		return;
+	}
+
+	if (rate < 0) {
+		ui.showToast({ message: "年利率不能为负数" });
+		return;
+	}
+
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	const payload = {
+		name: form.value.name,
+		total_price: total,
+		principal,
+		annual_rate: rate,
+		years,
+		repayment_method: form.value.repayment_method,
+		start_date: form.value.start_date != "" ? form.value.start_date : null,
+		note: form.value.note != "" ? form.value.note : null
+	};
+
+	try {
+		if (isEdit.value) {
+			await loanApi.update(id.value!, payload);
+		} else {
+			await loanApi.create(payload);
+		}
+
+		ui.showToast({ message: "保存成功" });
+		router.back();
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+// 删除
+function onRemove() {
+	ui.showConfirm({
+		title: "提示",
+		message: "删除贷款会同时移除自动生成的月供支出，确定删除吗？",
+		callback(action: string) {
+			if (action != "confirm") {
+				return;
+			}
+
+			loanApi
+				.remove(id.value!)
+				.then(() => {
+					ui.showToast({ message: "已删除" });
+					router.back();
+				})
+				.catch((e: any) => {
+					ui.showToast({ message: e?.message ?? "删除失败" });
+				});
+		}
+	});
+}
+
+onLoad(() => {
+	const query = router.query();
+
+	if (query != null && query["id"] != null) {
+		id.value = Number(query["id"]);
+		loadDetail();
+	}
+});
+</script>

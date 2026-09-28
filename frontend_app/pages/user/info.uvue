@@ -1,0 +1,197 @@
+<template>
+	<cl-page>
+		<cl-topbar title="个人信息" safe-area-top></cl-topbar>
+
+		<view class="p-4">
+			<!-- 头像 -->
+			<view
+				class="flex flex-row items-center rounded-2xl p-5"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-avatar
+					:size="56"
+					rounded
+					:pt="{
+						icon: {
+							size: 30,
+							name: 'user-line'
+						}
+					}"
+				></cl-avatar>
+
+				<view class="ml-4 flex-1">
+					<cl-text :size="17" :pt="{ className: 'font-bold' }">
+						{{ form.name || "未设置" }}
+					</cl-text>
+					<cl-text :size="12" color="info" :pt="{ className: 'mt-1' }">
+						用户名：{{ form.username || "—" }}
+					</cl-text>
+				</view>
+			</view>
+
+			<!-- 编辑 -->
+			<view
+				class="rounded-2xl p-4 mt-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">姓名</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.name"
+						placeholder="请输入姓名"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">手机号</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.phone"
+						type="number"
+						placeholder="请输入手机号"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">邮箱</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.email"
+						placeholder="请输入邮箱"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					修改密码（留空表示不修改）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.password"
+						password
+						placeholder="至少 6 位"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+			</view>
+		</view>
+
+		<cl-footer>
+			<cl-button
+				type="primary"
+				size="large"
+				:loading="saving"
+				:pt="{ className: '!rounded-lg' }"
+				@tap="onSave"
+			>
+				保存
+			</cl-button>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { userApi } from "@/api";
+import { getUser, setUser } from "@/api/request";
+import { isDark, router } from "@/.cool";
+import { useUi } from "@/uni_modules/cool-ui";
+import { ref } from "vue";
+
+const ui = useUi();
+
+// 表单
+const form = ref({
+	name: "",
+	username: "",
+	phone: "",
+	email: "",
+	password: ""
+});
+
+const userId = ref<number | null>(null);
+const saving = ref(false);
+
+// 加载用户信息
+async function loadUser() {
+	const u = getUser();
+
+	if (u != null && u.id != null) {
+		userId.value = Number(u.id);
+	}
+
+	if (userId.value == null) {
+		ui.showToast({ message: "未获取到用户信息，请重新登录" });
+		return;
+	}
+
+	try {
+		const d = await userApi.detail(userId.value!);
+
+		form.value.name = d.name ?? "";
+		form.value.username = d.username ?? "";
+		form.value.phone = d.phone ?? "";
+		form.value.email = d.email ?? "";
+	} catch (e) {
+		console.log("用户信息加载失败", e);
+	}
+}
+
+// 保存
+async function onSave() {
+	if (userId.value == null) {
+		ui.showToast({ message: "未获取到用户信息" });
+		return;
+	}
+
+	if (form.value.password != "" && form.value.password.length < 6) {
+		ui.showToast({ message: "密码至少 6 位" });
+		return;
+	}
+
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	const payload: any = {
+		name: form.value.name,
+		phone: form.value.phone != "" ? form.value.phone : null,
+		email: form.value.email != "" ? form.value.email : null
+	};
+
+	// 仅填写时才提交密码
+	if (form.value.password != "") {
+		payload.password = form.value.password;
+	}
+
+	try {
+		const res = await userApi.update(userId.value!, payload);
+
+		ui.showToast({ message: "保存成功" });
+
+		// 更新本地缓存（「我的」页会用到）
+		const old = getUser() ?? {};
+		setUser({ ...old, ...res });
+
+		form.value.password = "";
+		router.back();
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+onShow(() => {
+	loadUser();
+});
+</script>

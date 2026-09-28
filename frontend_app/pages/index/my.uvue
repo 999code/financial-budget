@@ -36,6 +36,14 @@
 			<!-- 功能 -->
 			<cl-list border title="功能" :pt="{ className: 'mt-4' }">
 				<cl-list-item
+					label="个人信息"
+					icon="id-card-line"
+					arrow
+					hoverable
+					@tap="toPage('/pages/user/info')"
+				></cl-list-item>
+
+				<cl-list-item
 					label="账户管理"
 					icon="bank-card-line"
 					arrow
@@ -49,6 +57,22 @@
 					arrow
 					hoverable
 					@tap="toPage('/pages/index/bill')"
+				></cl-list-item>
+
+				<cl-list-item
+					label="贷款管理"
+					icon="money-cny-box-line"
+					arrow
+					hoverable
+					@tap="toPage('/pages/loan/index')"
+				></cl-list-item>
+
+				<cl-list-item
+					label="养老金管理"
+					icon="shield-user-line"
+					arrow
+					hoverable
+					@tap="toPage('/pages/pension/index')"
 				></cl-list-item>
 			</cl-list>
 

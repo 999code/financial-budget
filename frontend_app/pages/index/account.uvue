@@ -1,10 +1,12 @@
 <template>
 	<cl-page>
-		<cl-topbar
-			title="账户管理"
-			safe-area-top
-			:show-back="false"
-		></cl-topbar>
+		<cl-topbar title="账户管理" safe-area-top :show-back="false">
+			<template #append>
+				<cl-button text type="primary" size="small" @tap="toCreate">
+					新增
+				</cl-button>
+			</template>
+		</cl-topbar>
 
 		<view class="p-4">
 			<!-- 总余额 -->
@@ -16,16 +18,22 @@
 			</view>
 
 			<!-- 账户列表 -->
-			<cl-list border title="我的账户" :pt="{ className: 'mt-4' }" v-if="list.length > 0">
+			<cl-list border v-if="list.length > 0" :pt="{ className: 'mt-4' }">
 				<cl-list-item
 					v-for="item in list"
 					:key="item.id"
 					:label="item.name ?? '未命名账户'"
+					arrow
 					hoverable
+					@tap="toEdit(item)"
 				>
-					<cl-text :size="15" :pt="{ className: 'font-bold' }">
-						{{ money(item.balance ?? item.initial_balance) }}
-					</cl-text>
+					<view class="flex flex-row items-center">
+						<cl-tag :pt="{ className: 'mr-2' }">{{ typeText(item.type) }}</cl-tag>
+
+						<cl-text :size="15" :pt="{ className: 'font-bold' }">
+							{{ money(item.balance ?? item.initial_balance) }}
+						</cl-text>
+					</view>
 				</cl-list-item>
 			</cl-list>
 
@@ -53,7 +61,7 @@
 <script setup lang="ts">
 import { accountApi } from "@/api";
 import { isLogin } from "@/api/request";
-import { router } from "@/.cool";
+import { isDark, router } from "@/.cool";
 import { computed, ref } from "vue";
 import CustomTabbar from "./components/tabbar.uvue";
 
@@ -80,6 +88,25 @@ function money(v: any): string {
 	}
 
 	return "¥" + n.toFixed(2);
+}
+
+function typeText(type: any): string {
+	const map: Record<string, string> = {
+		cash: "现金",
+		bank: "储蓄卡",
+		creditcard: "信用卡",
+		investment: "投资"
+	};
+
+	return map[String(type ?? "")] ?? "账户";
+}
+
+function toCreate() {
+	router.push({ path: "/pages/account/form" });
+}
+
+function toEdit(item: any) {
+	router.push({ path: "/pages/account/form", query: { id: item.id } });
 }
 
 async function refresh() {

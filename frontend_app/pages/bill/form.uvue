@@ -1,0 +1,349 @@
+<template>
+	<cl-page>
+		<cl-topbar
+			:title="isEdit ? '编辑收支' : '新增收支'"
+			safe-area-top
+		></cl-topbar>
+
+		<view class="p-4">
+			<!-- 收入 / 支出 切换 -->
+			<view
+				class="flex flex-row rounded-2xl p-1 mb-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<view
+					class="flex-1 py-2 flex flex-row items-center justify-center rounded-xl"
+					:class="form.category == 'expense' ? '!bg-primary-500' : ''"
+					@tap="form.category = 'expense'"
+				>
+					<cl-text
+						:size="14"
+						:pt="{
+							className: form.category == 'expense' ? 'text-white font-bold' : ''
+						}"
+					>
+						支出
+					</cl-text>
+				</view>
+
+				<view
+					class="flex-1 py-2 flex flex-row items-center justify-center rounded-xl"
+					:class="form.category == 'income' ? '!bg-primary-500' : ''"
+					@tap="form.category = 'income'"
+				>
+					<cl-text
+						:size="14"
+						:pt="{
+							className: form.category == 'income' ? 'text-white font-bold' : ''
+						}"
+					>
+						收入
+					</cl-text>
+				</view>
+			</view>
+
+			<!-- 表单 -->
+			<view
+				class="rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">名称</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.name"
+						placeholder="如：房贷、工资"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">金额</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.amount"
+						type="digit"
+						placeholder="0.00"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">性质</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.kind"
+						:options="kindOptions"
+						title="选择性质"
+					></cl-select>
+				</view>
+
+				<template v-if="form.kind == 'fixed'">
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">周期</cl-text>
+					<view class="mt-2">
+						<cl-select
+							v-model="form.period"
+							:options="periodOptions"
+							title="选择周期"
+						></cl-select>
+					</view>
+
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						终止日期（选填）
+					</cl-text>
+					<view class="mt-2">
+						<cl-select-date
+							v-model="form.end_date"
+							type="date"
+							value-format="YYYY-MM-DD"
+							label-format="YYYY-MM-DD"
+							placeholder="不填表示长期有效"
+						></cl-select-date>
+					</view>
+				</template>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					发生日期
+				</cl-text>
+				<view class="mt-2">
+					<cl-select-date
+						v-model="form.occurred_at"
+						type="date"
+						value-format="YYYY-MM-DD"
+						label-format="YYYY-MM-DD"
+						placeholder="请选择日期"
+					></cl-select-date>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					关联账户（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.account_id"
+						:options="accountOptions"
+						title="选择账户"
+						placeholder="不关联账户"
+					></cl-select>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					备注（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-textarea
+						v-model="form.note"
+						placeholder="补充说明"
+						border
+						:pt="{ className: 'rounded-lg' }"
+					></cl-textarea>
+				</view>
+			</view>
+
+			<!-- 删除 -->
+			<cl-button
+				v-if="isEdit"
+				type="error"
+				size="large"
+				:pt="{ className: 'mt-6 !rounded-lg' }"
+				@tap="onRemove"
+			>
+				删除该记录
+			</cl-button>
+		</view>
+
+		<cl-footer>
+			<cl-button
+				type="primary"
+				size="large"
+				:loading="saving"
+				:pt="{ className: '!rounded-lg' }"
+				@tap="onSave"
+			>
+				保存
+			</cl-button>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { accountApi, incomeExpenseApi } from "@/api";
+import { isDark, router } from "@/.cool";
+import type { ClSelectOption } from "@/uni_modules/cool-ui";
+import { useUi } from "@/uni_modules/cool-ui";
+import { computed, ref } from "vue";
+
+const ui = useUi();
+
+// 今天
+function today(): string {
+	const d = new Date();
+	const m = d.getMonth() + 1;
+	const day = d.getDate();
+
+	return `${d.getFullYear()}-${m < 10 ? "0" + m : m}-${day < 10 ? "0" + day : day}`;
+}
+
+// 表单
+const form = ref({
+	name: "",
+	amount: "",
+	kind: "fixed",
+	category: "expense",
+	period: "monthly",
+	end_date: "",
+	occurred_at: today(),
+	note: "",
+	// 0 表示「不关联账户」，避免 cl-select 绑定 null
+	account_id: 0
+});
+
+// 是否编辑
+const id = ref<number | null>(null);
+const isEdit = computed(() => id.value != null);
+
+const saving = ref(false);
+
+// 性质
+const kindOptions = ref<ClSelectOption[]>([
+	{ label: "固定（周期性）", value: "fixed" },
+	{ label: "临时（一次性）", value: "temp" }
+]);
+
+// 周期
+const periodOptions = ref<ClSelectOption[]>([
+	{ label: "每月", value: "monthly" },
+	{ label: "每年", value: "yearly" }
+]);
+
+// 账户
+const accountOptions = ref<ClSelectOption[]>([
+	{ label: "不关联账户", value: 0 }
+]);
+
+// 加载账户
+async function loadAccounts() {
+	try {
+		const list = (await accountApi.list()) ?? [];
+
+		accountOptions.value = [
+			{ label: "不关联账户", value: 0 },
+			...list.map((e) => {
+				return { label: e.name, value: e.id } as ClSelectOption;
+			})
+		];
+	} catch (e) {
+		console.log("账户加载失败", e);
+	}
+}
+
+// 加载详情
+async function loadDetail() {
+	try {
+		const d = await incomeExpenseApi.detail(id.value!);
+
+		form.value.name = d.name ?? "";
+		form.value.amount = String(d.amount ?? "");
+		form.value.kind = d.kind ?? "fixed";
+		form.value.category = d.category ?? "expense";
+		form.value.period = d.period ?? "monthly";
+		form.value.end_date = d.end_date ?? "";
+		form.value.occurred_at = (d.occurred_at ?? "").slice(0, 10);
+		form.value.note = d.note ?? "";
+		form.value.account_id = d.account_id ?? 0;
+	} catch (e) {
+		console.log("详情加载失败", e);
+	}
+}
+
+// 保存
+async function onSave() {
+	if (form.value.name == "") {
+		ui.showToast({ message: "请输入名称" });
+		return;
+	}
+
+	const amount = Number(form.value.amount);
+
+	if (isNaN(amount) || amount <= 0) {
+		ui.showToast({ message: "金额必须大于 0" });
+		return;
+	}
+
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	const payload = {
+		name: form.value.name,
+		amount,
+		kind: form.value.kind,
+		category: form.value.category,
+		// 临时收支不带周期
+		period: form.value.kind == "fixed" ? form.value.period : null,
+		end_date:
+			form.value.kind == "fixed" && form.value.end_date != ""
+				? form.value.end_date
+				: null,
+		occurred_at: form.value.occurred_at != "" ? form.value.occurred_at : null,
+		note: form.value.note != "" ? form.value.note : null,
+		account_id:
+			form.value.account_id != null && form.value.account_id > 0
+				? form.value.account_id
+				: null
+	};
+
+	try {
+		if (isEdit.value) {
+			await incomeExpenseApi.update(id.value!, payload);
+		} else {
+			await incomeExpenseApi.create(payload);
+		}
+
+		ui.showToast({ message: "保存成功" });
+		router.back();
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+// 删除
+function onRemove() {
+	ui.showConfirm({
+		title: "提示",
+		message: "确定删除该收支记录吗？",
+		callback(action: string) {
+			if (action != "confirm") {
+				return;
+			}
+
+			incomeExpenseApi
+				.remove(id.value!)
+				.then(() => {
+					ui.showToast({ message: "已删除" });
+					router.back();
+				})
+				.catch((e: any) => {
+					ui.showToast({ message: e?.message ?? "删除失败" });
+				});
+		}
+	});
+}
+
+// 初始化
+onLoad(() => {
+	const query = router.query();
+
+	if (query != null && query["id"] != null) {
+		id.value = Number(query["id"]);
+		loadDetail();
+	}
+
+	loadAccounts();
+});
+</script>

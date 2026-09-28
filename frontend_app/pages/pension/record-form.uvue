@@ -1,0 +1,469 @@
+<template>
+	<cl-page>
+		<cl-topbar
+			:title="isEdit ? '编辑养老金记录' : '新增养老金记录'"
+			safe-area-top
+		></cl-topbar>
+
+		<view class="p-4">
+			<!-- 表单 -->
+			<view
+				class="rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">人员</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.person_id"
+						:options="personOptions"
+						title="选择人员"
+						placeholder="请选择人员"
+					></cl-select>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					所属月份
+				</cl-text>
+				<view class="mt-2">
+					<cl-select-date
+						v-model="form.period_month"
+						type="month"
+						value-format="YYYY-MM"
+						label-format="YYYY-MM"
+						placeholder="请选择月份"
+					></cl-select-date>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					方向
+				</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.direction"
+						:options="directionOptions"
+						title="选择方向"
+						placeholder="自动（按退休日期判定）"
+					></cl-select>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					工资 / 缴费档次（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.salary"
+						type="digit"
+						placeholder="留空则取人员档案值"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					发生日期（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-select-date
+						v-model="form.occurred_on"
+						type="date"
+						value-format="YYYY-MM-DD"
+						label-format="YYYY-MM-DD"
+						placeholder="默认取当月 1 号"
+					></cl-select-date>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					备注（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-textarea
+						v-model="form.note"
+						placeholder="补充说明"
+						border
+						:pt="{ className: 'rounded-lg' }"
+					></cl-textarea>
+				</view>
+			</view>
+
+			<!-- 试算 -->
+			<cl-button
+				size="large"
+				:loading="previewing"
+				:pt="{ className: 'mt-4 !rounded-lg' }"
+				@tap="onPreview"
+			>
+				试算金额
+			</cl-button>
+
+			<!-- 试算结果 -->
+			<view
+				class="rounded-2xl p-4 mt-3"
+				v-if="preview != null"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<view class="flex flex-row items-center">
+					<cl-text :size="13" color="info">
+						{{ preview.scheme_text }} · {{ preview.direction_text }}
+					</cl-text>
+					<cl-text :size="13" color="info" :pt="{ className: 'ml-2' }">
+						{{ preview.period_month }}
+					</cl-text>
+				</view>
+
+				<cl-text
+					:size="28"
+					:color="preview.direction == 'income' ? 'success' : 'error'"
+					:pt="{ className: 'font-bold mt-2' }"
+				>
+					{{ signedMoney(preview.signed_amount) }}
+				</cl-text>
+
+				<view
+					class="flex flex-row items-center mt-4"
+					v-for="(item, index) in breakdownList"
+					:key="index"
+				>
+					<cl-text :size="13" color="info" :pt="{ className: 'flex-1' }">
+						{{ item.label }}
+					</cl-text>
+					<cl-text :size="13">{{ item.value }}</cl-text>
+				</view>
+			</view>
+
+			<!-- 同步到收支（仅编辑态） -->
+			<cl-button
+				v-if="isEdit"
+				size="large"
+				:loading="syncing"
+				:pt="{ className: 'mt-4 !rounded-lg' }"
+				@tap="onSync"
+			>
+				同步到收支管理
+			</cl-button>
+
+			<!-- 删除 -->
+			<cl-button
+				v-if="isEdit"
+				type="error"
+				size="large"
+				:pt="{ className: 'mt-3 !rounded-lg' }"
+				@tap="onRemove"
+			>
+				删除该记录
+			</cl-button>
+		</view>
+
+		<cl-footer>
+			<cl-button
+				type="primary"
+				size="large"
+				:loading="saving"
+				:pt="{ className: '!rounded-lg' }"
+				@tap="onSave"
+			>
+				保存
+			</cl-button>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { pensionApi, pensionPersonApi, type PensionPayload } from "@/api";
+import { isDark, keys, router } from "@/.cool";
+import type { ClSelectOption } from "@/uni_modules/cool-ui";
+import { useUi } from "@/uni_modules/cool-ui";
+import { computed, ref } from "vue";
+
+const ui = useUi();
+
+// 当前月份
+function thisMonth(): string {
+	const d = new Date();
+	const m = d.getMonth() + 1;
+
+	return `${d.getFullYear()}-${m < 10 ? "0" + m : m}`;
+}
+
+// 表单
+const form = ref({
+	person_id: 0,
+	period_month: thisMonth(),
+	direction: "",
+	salary: "",
+	occurred_on: "",
+	note: ""
+});
+
+// 是否编辑
+const id = ref<number | null>(null);
+const isEdit = computed(() => id.value != null);
+
+const saving = ref(false);
+const previewing = ref(false);
+const syncing = ref(false);
+
+// 试算结果
+const preview = ref<any>(null);
+
+// 明细
+const breakdownList = ref<{ label: string; value: string }[]>([]);
+
+// 人员选项
+const personOptions = ref<ClSelectOption[]>([]);
+
+// 方向
+const directionOptions = ref<ClSelectOption[]>([
+	{ label: "自动（按退休日期判定）", value: "" },
+	{ label: "领取（收入）", value: "income" },
+	{ label: "缴费（支出）", value: "expense" }
+]);
+
+function money(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return "¥0.00";
+	}
+
+	return "¥" + n.toFixed(2);
+}
+
+/** 数字净化：UTS 是 32 位浮点，提交前还原精度 */
+function round6(v: any): number {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return 0;
+	}
+
+	return Math.round(n * 1000000) / 1000000;
+}
+
+/** 数字转字符串，去掉浮点尾数 */
+function numText(v: any): string {
+	const n = round6(v);
+
+	if (n == Math.floor(n)) {
+		return String(Math.round(n));
+	}
+
+	let s = n.toFixed(4);
+	let i = s.length - 1;
+
+	while (i > 0 && s.charAt(i) == "0") {
+		i = i - 1;
+	}
+
+	if (s.charAt(i) == ".") {
+		i = i - 1;
+	}
+
+	return s.substring(0, i + 1);
+}
+
+function signedMoney(v: any): string {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n) || n == 0) {
+		return "¥0.00";
+	}
+
+	return (n > 0 ? "+" : "-") + "¥" + Math.abs(n).toFixed(2);
+}
+
+// 填充明细
+function fillBreakdown(data: any) {
+	preview.value = data;
+
+	// breakdown 是「中文键 → 金额」的字典，取 UTSJSONObject 里的值要用 getNumber
+	const map = (data?.breakdown ?? {}) as UTSJSONObject;
+	const ks = keys(map);
+
+	const arr: { label: string; value: string }[] = [];
+
+	for (let i = 0; i < ks.length; i++) {
+		let v: any = map.getNumber(ks[i]);
+
+		if (v == null) {
+			v = map[ks[i]];
+		}
+
+		arr.push({
+			label: ks[i],
+			value: money(v)
+		});
+	}
+
+	breakdownList.value = arr;
+}
+
+// 组装试算 / 保存参数
+function buildPayload(): PensionPayload {
+	return {
+		person_id: Number(form.value.person_id),
+		period_month: form.value.period_month,
+		direction: form.value.direction != "" ? form.value.direction : null,
+		salary: form.value.salary != "" ? round6(form.value.salary) : null,
+		occurred_on: form.value.occurred_on != "" ? form.value.occurred_on : null,
+		note: form.value.note != "" ? form.value.note : null
+	};
+}
+
+// 加载人员
+async function loadPersons() {
+	try {
+		const list = (await pensionPersonApi.list()) ?? [];
+		const options: ClSelectOption[] = [];
+
+		for (let i = 0; i < list.length; i++) {
+			options.push({
+				label: list[i].name + "（" + (list[i].scheme_text ?? list[i].scheme) + "）",
+				value: list[i].id
+			} as ClSelectOption);
+		}
+
+		personOptions.value = options;
+
+		// 新增时默认选第一个人
+		if (!isEdit.value && options.length > 0 && form.value.person_id == 0) {
+			form.value.person_id = Number(options[0].value);
+		}
+	} catch (e: any) {
+		console.log("人员加载失败", e);
+	}
+}
+
+// 加载详情
+async function loadDetail() {
+	try {
+		const d = await pensionApi.detail(id.value!);
+
+		form.value.person_id = d.person_id ?? 0;
+		form.value.period_month = d.period_month ?? thisMonth();
+		form.value.direction = d.direction ?? "";
+		form.value.salary = d.salary != null ? numText(d.salary) : "";
+		form.value.occurred_on = (d.occurred_on ?? "").slice(0, 10);
+		form.value.note = d.note ?? "";
+
+		// 已有记录直接展示金额与明细
+		fillBreakdown({
+			scheme_text: d.scheme_text ?? d.scheme,
+			direction_text: d.direction_text,
+			direction: d.direction,
+			period_month: d.period_month,
+			signed_amount: d.signed_amount,
+			breakdown: d.breakdown ?? {}
+		});
+	} catch (e: any) {
+		console.log("详情加载失败", e);
+	}
+}
+
+// 试算
+async function onPreview() {
+	if (form.value.person_id == 0) {
+		ui.showToast({ message: "请先选择人员" });
+		return;
+	}
+
+	previewing.value = true;
+
+	try {
+		const data = await pensionApi.preview(buildPayload());
+		fillBreakdown(data);
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "试算失败" });
+	} finally {
+		previewing.value = false;
+	}
+}
+
+// 保存
+async function onSave() {
+	if (form.value.person_id == 0) {
+		ui.showToast({ message: "请选择人员" });
+		return;
+	}
+
+	if (form.value.period_month == "") {
+		ui.showToast({ message: "请选择所属月份" });
+		return;
+	}
+
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	try {
+		if (isEdit.value) {
+			await pensionApi.update(id.value!, buildPayload());
+		} else {
+			await pensionApi.create(buildPayload());
+		}
+
+		ui.showToast({ message: "保存成功" });
+		router.back();
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+// 同步到收支管理
+async function onSync() {
+	if (syncing.value) {
+		return;
+	}
+
+	syncing.value = true;
+
+	try {
+		const res = await pensionApi.sync(id.value!);
+		ui.showToast({
+			message: res?.action == "updated" ? "已更新收支记录" : "已同步到收支管理"
+		});
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "同步失败" });
+	} finally {
+		syncing.value = false;
+	}
+}
+
+// 删除
+function onRemove() {
+	ui.showConfirm({
+		title: "提示",
+		message: "确定删除该养老金记录吗？",
+		callback(action: string) {
+			if (action != "confirm") {
+				return;
+			}
+
+			pensionApi
+				.remove(id.value!)
+				.then(() => {
+					ui.showToast({ message: "已删除" });
+					router.back();
+				})
+				.catch((e: any) => {
+					ui.showToast({ message: e?.message ?? "删除失败" });
+				});
+		}
+	});
+}
+
+onLoad(() => {
+	const query = router.query();
+
+	if (query != null && query["id"] != null) {
+		id.value = Number(query["id"]);
+		loadDetail();
+	}
+
+	loadPersons();
+});
+</script>

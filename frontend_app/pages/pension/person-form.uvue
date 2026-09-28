@@ -1,0 +1,519 @@
+<template>
+	<cl-page>
+		<cl-topbar
+			:title="isEdit ? '编辑人员档案' : '新增人员档案'"
+			safe-area-top
+		></cl-topbar>
+
+		<view class="p-4">
+			<!-- 基础信息 -->
+			<view
+				class="rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">姓名</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.name"
+						placeholder="请输入姓名"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					人员分类
+				</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.scheme"
+						:options="schemeOptions"
+						title="选择分类"
+					></cl-select>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					性别（用于推算法定退休年龄）
+				</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.gender"
+						:options="genderOptions"
+						title="选择性别"
+						placeholder="不填"
+					></cl-select>
+				</view>
+
+				<template v-if="form.gender == 'female'">
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						女性岗位
+					</cl-text>
+					<view class="mt-2">
+						<cl-select
+							v-model="form.post_type"
+							:options="postOptions"
+							title="选择岗位"
+							placeholder="不填"
+						></cl-select>
+					</view>
+				</template>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					出生日期
+				</cl-text>
+				<view class="mt-2">
+					<cl-select-date
+						v-model="form.birth_date"
+						type="date"
+						value-format="YYYY-MM-DD"
+						label-format="YYYY-MM-DD"
+						placeholder="请选择出生日期"
+					></cl-select-date>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					退休日期（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-select-date
+						v-model="form.retire_date"
+						type="date"
+						value-format="YYYY-MM-DD"
+						label-format="YYYY-MM-DD"
+						placeholder="留空按政策推算"
+					></cl-select-date>
+				</view>
+			</view>
+
+			<!-- 缴费信息 -->
+			<view
+				class="rounded-2xl p-4 mt-3"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">
+					{{ isResident ? '年缴费档次（元/年）' : '月工资（元）' }}
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.salary"
+						type="digit"
+						placeholder="0"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					缴费年限（年）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.contribution_years"
+						type="digit"
+						placeholder="0"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					个人账户储存额（元）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.personal_account_balance"
+						type="digit"
+						placeholder="0"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<view class="flex flex-row items-center mt-4">
+					<cl-text :size="13" :pt="{ className: 'flex-1' }">
+						按记账利率自动推算储存额
+					</cl-text>
+					<cl-switch v-model="form.auto_balance"></cl-switch>
+				</view>
+
+				<cl-text :size="11" color="info" :pt="{ className: 'mt-1' }">
+					开启后按历年记账利率与工资增长率正向推算，忽略上方手填值
+				</cl-text>
+
+				<template v-if="!isResident">
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						视同缴费年限（年）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="form.deemed_years"
+							type="digit"
+							placeholder="0"
+							border
+							clearable
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						视同缴费指数（选填）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="form.deemed_index"
+							type="digit"
+							placeholder="留空取本人平均缴费指数"
+							border
+							clearable
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						职业年金余额（元）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="form.annuity_balance"
+							type="digit"
+							placeholder="0"
+							border
+							clearable
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						企业年金余额（元）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="form.enterprise_annuity_balance"
+							type="digit"
+							placeholder="0"
+							border
+							clearable
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						个人养老金余额（元）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="form.private_pension_balance"
+							type="digit"
+							placeholder="0"
+							border
+							clearable
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+
+					<view class="flex flex-row items-center mt-4">
+						<cl-text :size="13" :pt="{ className: 'flex-1' }">
+							灵活就业（缴费全部个人承担）
+						</cl-text>
+						<cl-switch v-model="form.flexible"></cl-switch>
+					</view>
+				</template>
+
+				<template v-if="isResident">
+					<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+						基础养老金（元/月，选填）
+					</cl-text>
+					<view class="mt-2">
+						<cl-input
+							v-model="form.resident_base"
+							type="digit"
+							placeholder="留空取参数设置"
+							border
+							clearable
+							:pt="{ className: 'rounded-lg' }"
+						></cl-input>
+					</view>
+				</template>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					备注（选填）
+				</cl-text>
+				<view class="mt-2">
+					<cl-textarea
+						v-model="form.note"
+						placeholder="补充说明"
+						border
+						:pt="{ className: 'rounded-lg' }"
+					></cl-textarea>
+				</view>
+			</view>
+
+			<!-- 删除 -->
+			<cl-button
+				v-if="isEdit"
+				type="error"
+				size="large"
+				:pt="{ className: 'mt-6 !rounded-lg' }"
+				@tap="onRemove"
+			>
+				删除该档案
+			</cl-button>
+		</view>
+
+		<cl-footer>
+			<cl-button
+				type="primary"
+				size="large"
+				:loading="saving"
+				:pt="{ className: '!rounded-lg' }"
+				@tap="onSave"
+			>
+				保存
+			</cl-button>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { pensionPersonApi } from "@/api";
+import { isDark, router } from "@/.cool";
+import type { ClSelectOption } from "@/uni_modules/cool-ui";
+import { useUi } from "@/uni_modules/cool-ui";
+import { computed, ref } from "vue";
+
+const ui = useUi();
+
+// 表单
+const form = ref({
+	name: "",
+	scheme: "enterprise",
+	gender: "",
+	post_type: "",
+	birth_date: "",
+	retire_date: "",
+	salary: "",
+	contribution_years: "",
+	personal_account_balance: "",
+	auto_balance: false,
+	deemed_years: "",
+	deemed_index: "",
+	annuity_balance: "",
+	enterprise_annuity_balance: "",
+	private_pension_balance: "",
+	flexible: false,
+	resident_base: "",
+	note: ""
+});
+
+// 是否编辑
+const id = ref<number | null>(null);
+const isEdit = computed(() => id.value != null);
+
+const saving = ref(false);
+
+// 是否居民
+const isResident = computed(() => form.value.scheme == "resident");
+
+// 分类
+const schemeOptions = ref<ClSelectOption[]>([
+	{ label: "企业职工", value: "enterprise" },
+	{ label: "公务员事业单位", value: "government" },
+	{ label: "城乡居民", value: "resident" }
+]);
+
+// 性别
+const genderOptions = ref<ClSelectOption[]>([
+	{ label: "不填", value: "" },
+	{ label: "男", value: "male" },
+	{ label: "女", value: "female" }
+]);
+
+// 女性岗位
+const postOptions = ref<ClSelectOption[]>([
+	{ label: "不填", value: "" },
+	{ label: "工人岗（原 50 岁）", value: "worker" },
+	{ label: "干部/技术岗（原 55 岁）", value: "cadre" }
+]);
+
+function num(v: any): number {
+	const n = Number(v);
+	return isNaN(n) ? 0 : n;
+}
+
+/** 数字净化：UTS 是 32 位浮点，提交前还原精度 */
+function round6(v: any): number {
+	const n = Number(v ?? 0);
+
+	if (isNaN(n)) {
+		return 0;
+	}
+
+	return Math.round(n * 1000000) / 1000000;
+}
+
+/** 数字转字符串，去掉浮点尾数 */
+function numText(v: any): string {
+	const n = round6(v);
+
+	if (n == Math.floor(n)) {
+		return String(Math.round(n));
+	}
+
+	let s = n.toFixed(4);
+	let i = s.length - 1;
+
+	while (i > 0 && s.charAt(i) == "0") {
+		i = i - 1;
+	}
+
+	if (s.charAt(i) == ".") {
+		i = i - 1;
+	}
+
+	return s.substring(0, i + 1);
+}
+
+function orNull(v: any): any {
+	return v == "" ? null : v;
+}
+
+// 加载详情
+async function loadDetail() {
+	try {
+		// 人员档案没有单独的详情接口，从列表里取
+		const rows = (await pensionPersonApi.list()) ?? [];
+
+		let d: any = null;
+
+		for (let i = 0; i < rows.length; i++) {
+			if (rows[i].id == id.value) {
+				d = rows[i];
+				break;
+			}
+		}
+
+		if (d == null) {
+			return;
+		}
+
+		form.value.name = d.name ?? "";
+		form.value.scheme = d.scheme ?? "enterprise";
+		form.value.gender = d.gender ?? "";
+		form.value.post_type = d.post_type ?? "";
+		form.value.birth_date = (d.birth_date ?? "").slice(0, 10);
+		form.value.retire_date = (d.retire_date ?? "").slice(0, 10);
+		form.value.salary = d.salary != null ? numText(d.salary) : "";
+		form.value.contribution_years =
+			d.contribution_years != null ? numText(d.contribution_years) : "";
+		form.value.personal_account_balance =
+			d.personal_account_balance != null
+				? numText(d.personal_account_balance)
+				: "";
+		form.value.auto_balance = d.auto_balance == true;
+		form.value.deemed_years = d.deemed_years != null ? numText(d.deemed_years) : "";
+		form.value.deemed_index = d.deemed_index != null ? numText(d.deemed_index) : "";
+		form.value.annuity_balance =
+			d.annuity_balance != null ? numText(d.annuity_balance) : "";
+		form.value.enterprise_annuity_balance =
+			d.enterprise_annuity_balance != null
+				? numText(d.enterprise_annuity_balance)
+				: "";
+		form.value.private_pension_balance =
+			d.private_pension_balance != null
+				? numText(d.private_pension_balance)
+				: "";
+		form.value.flexible = d.flexible == true;
+		form.value.resident_base =
+			d.resident_base != null ? numText(d.resident_base) : "";
+		form.value.note = d.note ?? "";
+	} catch (e: any) {
+		console.log("档案加载失败", e);
+	}
+}
+
+// 保存
+async function onSave() {
+	if (form.value.name == "") {
+		ui.showToast({ message: "请输入姓名" });
+		return;
+	}
+
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	const payload = {
+		name: form.value.name,
+		scheme: form.value.scheme,
+		gender: orNull(form.value.gender),
+		post_type: form.value.gender == "female" ? orNull(form.value.post_type) : null,
+		birth_date: orNull(form.value.birth_date),
+		retire_date: orNull(form.value.retire_date),
+		salary: round6(form.value.salary),
+		contribution_years: round6(form.value.contribution_years),
+		personal_account_balance: round6(form.value.personal_account_balance),
+		auto_balance: form.value.auto_balance,
+		deemed_years: round6(form.value.deemed_years),
+		deemed_index: round6(form.value.deemed_index),
+		annuity_balance: round6(form.value.annuity_balance),
+		enterprise_annuity_balance: round6(form.value.enterprise_annuity_balance),
+		private_pension_balance: round6(form.value.private_pension_balance),
+		flexible: form.value.flexible,
+		resident_base: isResident.value ? round6(form.value.resident_base) : null,
+		note: orNull(form.value.note)
+	};
+
+	try {
+		if (isEdit.value) {
+			await pensionPersonApi.update(id.value!, payload);
+		} else {
+			await pensionPersonApi.create(payload);
+		}
+
+		ui.showToast({ message: "保存成功" });
+		router.back();
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+// 删除
+function onRemove() {
+	ui.showConfirm({
+		title: "提示",
+		message: "删除档案会同时删除其名下的养老金记录，确定删除吗？",
+		callback(action: string) {
+			if (action != "confirm") {
+				return;
+			}
+
+			pensionPersonApi
+				.remove(id.value!)
+				.then(() => {
+					ui.showToast({ message: "已删除" });
+					router.back();
+				})
+				.catch((e: any) => {
+					ui.showToast({ message: e?.message ?? "删除失败" });
+				});
+		}
+	});
+}
+
+onLoad(() => {
+	const query = router.query();
+
+	if (query != null && query["id"] != null) {
+		id.value = Number(query["id"]);
+		loadDetail();
+	}
+});
+</script>

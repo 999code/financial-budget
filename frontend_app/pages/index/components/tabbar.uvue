@@ -1,5 +1,5 @@
 <template>
-	<cl-footer :pt="{ className: barClass, content: { className: 'px-2' } }">
+	<cl-footer :height="60" :pt="{ className: barClass, content: { className: 'px-2' } }">
 		<view class="flex flex-row">
 			<view
 				v-for="item in list"
@@ -35,7 +35,7 @@ defineOptions({
 
 type TabItem = {
 	text: string; // 文案
-	value: string; // 页面路径
+	value: string; // 页面路径，必须以 / 开头（uni-app 规范，否则 switchTab 会失败）
 	icon: string; // 未选中图标
 	activeIcon: string; // 选中图标
 };
@@ -44,35 +44,35 @@ type TabItem = {
 const list: TabItem[] = [
 	{
 		text: "首页",
-		value: "pages/index/home",
+		value: "/pages/index/home",
 		icon: "home-line",
 		activeIcon: "home-fill"
 	},
 	{
 		text: "收支",
-		value: "pages/index/bill",
+		value: "/pages/index/bill",
 		icon: "exchange-line",
 		activeIcon: "exchange-fill"
 	},
 	{
 		text: "账户",
-		value: "pages/index/account",
+		value: "/pages/index/account",
 		icon: "bank-card-line",
 		activeIcon: "bank-card-fill"
 	},
 	{
 		text: "我的",
-		value: "pages/index/my",
+		value: "/pages/index/my",
 		icon: "user-line",
 		activeIcon: "user-fill"
 	}
 ];
 
-// 背景样式（深色模式适配）
+// 边框样式（背景色由 cl-footer 按主题自动处理，深色模式适配）
 const barClass = computed(() => {
 	return isDark.value
-		? "!bg-surface-900 border-t border-solid !border-surface-700"
-		: "!bg-white border-t border-solid !border-surface-100";
+		? "border-t border-solid !border-surface-700"
+		: "border-t border-solid !border-surface-100";
 });
 
 // 是否选中
@@ -80,7 +80,7 @@ function isActive(item: TabItem): boolean {
 	return router.path() == item.value;
 }
 
-// 切换
+// 切换（router 内部会自动识别 tabBar 页面并使用 switchTab）
 function onSelect(item: TabItem) {
 	if (isActive(item)) {
 		return;
@@ -88,9 +88,4 @@ function onSelect(item: TabItem) {
 
 	router.to(item.value);
 }
-
-// 隐藏原生 tabBar
-// #ifndef MP
-uni.hideTabBar();
-// #endif
 </script>

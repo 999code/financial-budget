@@ -1,0 +1,232 @@
+<template>
+	<cl-page>
+		<cl-topbar
+			:title="isEdit ? '编辑账户' : '新增账户'"
+			safe-area-top
+		></cl-topbar>
+
+		<view class="p-4">
+			<view
+				class="rounded-2xl p-4"
+				:class="isDark ? '!bg-surface-800' : '!bg-surface-100'"
+			>
+				<cl-text :size="13" color="info">账户名称</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.name"
+						placeholder="如：招商银行"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					卡号（同一账户下不可重复）
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.card_number"
+						placeholder="如：CARD0001"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">账户类型</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.type"
+						:options="typeOptions"
+						title="选择类型"
+					></cl-select>
+				</view>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">
+					期初余额
+				</cl-text>
+				<view class="mt-2">
+					<cl-input
+						v-model="form.initial_balance"
+						type="digit"
+						placeholder="0.00"
+						border
+						clearable
+						:pt="{ className: 'rounded-lg' }"
+					></cl-input>
+				</view>
+
+				<cl-text :size="12" color="info" :pt="{ className: 'mt-2' }">
+					当前余额由收支记录实时汇总，不在此处录入
+				</cl-text>
+
+				<cl-text :size="13" color="info" :pt="{ className: 'mt-4' }">币种</cl-text>
+				<view class="mt-2">
+					<cl-select
+						v-model="form.currency"
+						:options="currencyOptions"
+						title="选择币种"
+					></cl-select>
+				</view>
+			</view>
+
+			<cl-button
+				v-if="isEdit"
+				type="error"
+				size="large"
+				:pt="{ className: 'mt-6 !rounded-lg' }"
+				@tap="onRemove"
+			>
+				删除该账户
+			</cl-button>
+		</view>
+
+		<cl-footer>
+			<cl-button
+				type="primary"
+				size="large"
+				:loading="saving"
+				:pt="{ className: '!rounded-lg' }"
+				@tap="onSave"
+			>
+				保存
+			</cl-button>
+		</cl-footer>
+	</cl-page>
+</template>
+
+<script setup lang="ts">
+import { accountApi } from "@/api";
+import { isDark, router } from "@/.cool";
+import type { ClSelectOption } from "@/uni_modules/cool-ui";
+import { useUi } from "@/uni_modules/cool-ui";
+import { computed, ref } from "vue";
+
+const ui = useUi();
+
+// 表单
+const form = ref({
+	name: "",
+	card_number: "",
+	type: "bank",
+	initial_balance: "0",
+	currency: "CNY"
+});
+
+const id = ref<number | null>(null);
+const isEdit = computed(() => id.value != null);
+
+const saving = ref(false);
+
+// 账户类型
+const typeOptions = ref<ClSelectOption[]>([
+	{ label: "现金", value: "cash" },
+	{ label: "储蓄卡", value: "bank" },
+	{ label: "信用卡", value: "creditcard" },
+	{ label: "投资账户", value: "investment" }
+]);
+
+// 币种
+const currencyOptions = ref<ClSelectOption[]>([
+	{ label: "人民币 CNY", value: "CNY" },
+	{ label: "美元 USD", value: "USD" },
+	{ label: "港币 HKD", value: "HKD" }
+]);
+
+// 加载详情
+async function loadDetail() {
+	try {
+		const d = await accountApi.detail(id.value!);
+
+		form.value.name = d.name ?? "";
+		form.value.card_number = d.card_number ?? "";
+		form.value.type = d.type ?? "bank";
+		form.value.initial_balance = String(d.initial_balance ?? 0);
+		form.value.currency = d.currency ?? "CNY";
+	} catch (e) {
+		console.log("详情加载失败", e);
+	}
+}
+
+// 保存
+async function onSave() {
+	if (form.value.name == "") {
+		ui.showToast({ message: "请输入账户名称" });
+		return;
+	}
+
+	if (form.value.card_number.trim() == "") {
+		ui.showToast({ message: "卡号不能为空" });
+		return;
+	}
+
+	const initialBalance = Number(form.value.initial_balance);
+
+	if (isNaN(initialBalance)) {
+		ui.showToast({ message: "期初余额格式不正确" });
+		return;
+	}
+
+	if (saving.value) {
+		return;
+	}
+
+	saving.value = true;
+
+	const payload = {
+		name: form.value.name,
+		card_number: form.value.card_number.trim(),
+		type: form.value.type,
+		initial_balance: initialBalance,
+		currency: form.value.currency
+	};
+
+	try {
+		if (isEdit.value) {
+			await accountApi.update(id.value!, payload);
+		} else {
+			await accountApi.create(payload);
+		}
+
+		ui.showToast({ message: "保存成功" });
+		router.back();
+	} catch (e: any) {
+		ui.showToast({ message: e?.message ?? "保存失败" });
+	} finally {
+		saving.value = false;
+	}
+}
+
+// 删除
+function onRemove() {
+	ui.showConfirm({
+		title: "提示",
+		message: "确定删除该账户吗？",
+		callback(action: string) {
+			if (action != "confirm") {
+				return;
+			}
+
+			accountApi
+				.remove(id.value!)
+				.then(() => {
+					ui.showToast({ message: "已删除" });
+					router.back();
+				})
+				.catch((e: any) => {
+					ui.showToast({ message: e?.message ?? "删除失败" });
+				});
+		}
+	});
+}
+
+onLoad(() => {
+	const query = router.query();
+
+	if (query != null && query["id"] != null) {
+		id.value = Number(query["id"]);
+		loadDetail();
+	}
+});
+</script>
