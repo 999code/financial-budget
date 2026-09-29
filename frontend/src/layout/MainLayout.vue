@@ -38,7 +38,7 @@
         <!-- 设置分组：只作为父级展开用，其 index 不对应具体路由 -->
         <el-sub-menu index="/settings">
           <template #title>
-            <el-icon><Setting /></el-icon>
+            <el-icon><Tools /></el-icon>
             <span>设置</span>
           </template>
           <el-menu-item index="/profile">
